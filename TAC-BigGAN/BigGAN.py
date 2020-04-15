@@ -293,7 +293,8 @@ class Discriminator(nn.Module):
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
                SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
-               D_init='ortho', skip_init=False, D_param='SN', AC=False, TAC=False, TP=False, TQ=False, **kwargs):
+               D_init='ortho', skip_init=False, D_param='SN', AC=False, TAC=False, TP=False, TQ=False, embed_sn=True,
+               **kwargs):
     super(Discriminator, self).__init__()
     saved_args = locals()
     print("Discriminator saved_args is", saved_args)
@@ -373,13 +374,13 @@ class Discriminator(nn.Module):
 
     if self.TP:
       self.linear_P = self.which_linear(self.arch['out_channels'][-1], 1)
-      self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
-      self.embed_cP = self.which_embedding(self.n_classes, 1)
+      self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
+      self.embed_cP = self.which_embedding(self.n_classes, 1) if embed_sn else nn.Embedding(self.n_classes, 1)
       self.ma_etP = None
     if self.TQ:
       self.linear_Q = self.which_linear(self.arch['out_channels'][-1], 1)
-      self.embed_vQ = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
-      self.embed_cQ = self.which_embedding(self.n_classes, 1)
+      self.embed_vQ = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
+      self.embed_cQ = self.which_embedding(self.n_classes, 1) if embed_sn else nn.Embedding(self.n_classes, 1)
       self.ma_etQ = None
 
     # Initialize weights
@@ -500,7 +501,7 @@ class G_D(nn.Module):
       D_input = torch.cat([G_z, x], 0) if x is not None else G_z
       D_class = torch.cat([gy, dy], 0) if dy is not None else gy
       # Get Discriminator output
-      D_out, mi, cls = self.D(D_input, D_class, add_bias=not train_G)
+      D_out, mi, cls, tP, tQ = self.D(D_input, D_class, add_bias=not train_G)
       if x is not None:
         return D_out[:G_z.shape[0]], D_out[G_z.shape[0]:], mi, cls  # D_fake, D_real, mi_fake, cls_fake
       else:

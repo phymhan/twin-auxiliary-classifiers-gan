@@ -75,7 +75,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     for step_index in range(config['num_D_steps']):
       # If accumulating gradients, loop multiple times before an optimizer step
       for accumulation_index in range(config['num_D_accumulations']):
-        pdb.set_trace()
         z_.sample_()
         y_.sample_()
         D_fake, D_real, mi, c_cls = GD(z_[:config['batch_size']], y_[:config['batch_size']],

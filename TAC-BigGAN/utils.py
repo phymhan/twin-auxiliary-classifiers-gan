@@ -67,28 +67,25 @@ def prepare_parser():
         help='Name of the model module (default: %(default)s)')
     parser.add_argument(
         '--AC', action='store_true', default=False,
-        help='Use AC? '
-             '(default: %(default)s)')
+        help='Use AC? (default: %(default)s)')
     parser.add_argument(
         '--TAC', action='store_true', default=False,
-        help='Use Twin AC? '
-             '(default: %(default)s)')
+        help='Use Twin AC? (default: %(default)s)')
     parser.add_argument(
         '--TP', action='store_true', default=False,
-        help='Use MINE for real data? '
-             '(default: %(default)s)')
+        help='Use MINE for real data? (default: %(default)s)')
     parser.add_argument(
         '--TQ', action='store_true', default=False,
-        help='Use MINE for fake data? '
-             '(default: %(default)s)')
+        help='Use MINE for fake data? (default: %(default)s)')
+    parser.add_argument(
+        '--no_embed_sn', action='store_false', dest='embed_sn', default=True,
+        help='Use spectral normalization in embedding layer.')
     parser.add_argument(
         '--AC_weight', type=float, default=1.0,
-        help='weight for AC loss'
-             '(default: %(default)s)')
+        help='weight for AC loss (default: %(default)s)')
     parser.add_argument(
         '--MINE_weight', type=float, default=0.2,
-        help='weight for MINE loss'
-             '(default: %(default)s)')
+        help='weight for MINE loss(default: %(default)s)')
     parser.add_argument(
         '--G_param', type=str, default='SN',
         help='Parameterization style to use for G, spectral norm (SN) or SVD (SVD)'
