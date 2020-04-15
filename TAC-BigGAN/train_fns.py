@@ -79,18 +79,23 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         y_.sample_()
         D_fake, D_real, mi, c_cls = GD(z_[:config['batch_size']], y_[:config['batch_size']],
                             x[counter], y[counter], train_G=False, 
-                            split_D=config['split_D'])
+                            split_D=config['split_D'], add_bias=True)
 
         # Compute components of D's loss, average them, and divide by 
         # the number of gradient accumulations
         D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
         C_loss = 0
         if config['loss_type'] == 'MINE':
-            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
+          C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
         if config['loss_type'] == 'Twin_AC':
-            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
+          C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
+          if config['train_AC_on_fake']:
+            pdb.set_trace()
+            C_loss += F.cross_entropy(c_cls[:D_fake.shape[0]], y_)
         if config['loss_type'] == 'AC':
-            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
+          C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])  # AC should be trained on fake also
+          if config['train_AC_on_fake']:
+            C_loss += F.cross_entropy(c_cls[:D_fake.shape[0]], y_)
         D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight']) / float(config['num_D_accumulations'])
         D_loss.backward()
         counter += 1
@@ -110,27 +115,27 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     # Zero G's gradients by default before training G, for safety
     G.optim.zero_grad()
     for step_index in range(config['num_G_steps']):
-        for accumulation_index in range(config['num_G_accumulations']):
-            z_.sample_()
-            y_.sample_()
-            D_fake, G_z, mi, c_cls = GD(z_, y_, train_G=True, split_D=config['split_D'], return_G_z=True)
-            C_loss = 0
-            MI_loss = 0
-            if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
-                C_loss = F.cross_entropy(c_cls, y_)
-                if config['loss_type'] == 'Twin_AC':
-                    MI_loss = F.cross_entropy(mi, y_)
+      for accumulation_index in range(config['num_G_accumulations']):
+        z_.sample_()
+        y_.sample_()
+        D_fake, G_z, mi, c_cls = GD(z_, y_, train_G=True, split_D=config['split_D'], return_G_z=True)
+        C_loss = 0
+        MI_loss = 0
+        if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
+          C_loss = F.cross_entropy(c_cls, y_)
+          if config['loss_type'] == 'Twin_AC':
+            MI_loss = F.cross_entropy(mi, y_)
 
-            G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
-            C_loss = C_loss / float(config['num_G_accumulations'])
-            MI_loss = MI_loss / float(config['num_G_accumulations'])
-            (G_loss + (C_loss - MI_loss)*config['AC_weight']).backward()
+        G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
+        C_loss = C_loss / float(config['num_G_accumulations'])
+        MI_loss = MI_loss / float(config['num_G_accumulations'])
+        (G_loss + (C_loss - MI_loss)*config['AC_weight']).backward()
 
         # Optionally apply modified ortho reg in G
         if config['G_ortho'] > 0.0:
-            print('using modified ortho reg in G')  # Debug print to indicate we're using ortho reg in G
-            # Don't ortho reg shared, it makes no sense. Really we should blacklist any embeddings for this
-            utils.ortho(G, config['G_ortho'], blacklist=[param for param in G.shared.parameters()])
+          print('using modified ortho reg in G')  # Debug print to indicate we're using ortho reg in G
+          # Don't ortho reg shared, it makes no sense. Really we should blacklist any embeddings for this
+          utils.ortho(G, config['G_ortho'], blacklist=[param for param in G.shared.parameters()])
         G.optim.step()
     
     # If we have an ema, update it, regardless of if we test with it or not
@@ -138,10 +143,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       ema.update(state_dict['itr'])
     
     out = {'G_loss': float(G_loss.item()), 
-            'D_loss_real': float(D_loss_real.item()),
-            'D_loss_fake': float(D_loss_fake.item()),
-            'C_loss': C_loss,
-            'MI_loss': MI_loss}
+           'D_loss_real': float(D_loss_real.item()),
+           'D_loss_fake': float(D_loss_fake.item()),
+           'C_loss': C_loss,
+           'MI_loss': MI_loss}
     # Return G's loss and the components of D's loss.
     return out
   return train
@@ -208,7 +213,6 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                        fix_z=fix_z, fix_y=fix_y, device='cuda')
 
 
-  
 ''' This function runs the inception metrics code, checks if the results
     are an improvement over the previous best (either in IS or FID, 
     user-specified), logs the results, and saves a best_ copy if it's an 

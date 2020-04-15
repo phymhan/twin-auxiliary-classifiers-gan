@@ -66,6 +66,9 @@ def prepare_parser():
         '--loss_type', type=str, default='Twin_AC',
         help='Name of the model module (default: %(default)s)')
     parser.add_argument(
+        '--train_AC_on_fake', action='store_true', default=False,
+        help='Train AC on fake? (default: %(default)s)')
+    parser.add_argument(
         '--AC', action='store_true', default=False,
         help='Use AC? (default: %(default)s)')
     parser.add_argument(

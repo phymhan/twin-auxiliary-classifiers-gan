@@ -471,7 +471,7 @@ class G_D(nn.Module):
     self.G = G
     self.D = D
 
-  def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False, split_D=False):
+  def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False, split_D=False, add_bias=True):
     # If training G, enable grad tape
     with torch.set_grad_enabled(train_G):
       # Get Generator output given noise and label
@@ -484,9 +484,9 @@ class G_D(nn.Module):
     # Split_D means to run D once with real data and once with fake,
     # rather than concatenating along the batch dimension.
     if split_D:
-      D_fake, mi_f, c_cls_f, tP_f, tQ_f = self.D(G_z, gy, add_bias=not train_G)
+      D_fake, mi_f, c_cls_f, tP_f, tQ_f = self.D(G_z, gy, add_bias=add_bias)
       if x is not None:
-        D_real, mi_r, c_cls_r, tP_r, tQ_r = self.D(x, dy, add_bias=not train_G)
+        D_real, mi_r, c_cls_r, tP_r, tQ_r = self.D(x, dy, add_bias=add_bias)
         mi = torch.cat([mi_f, mi_r], dim=0) if mi_f is not None else None
         cls = torch.cat([c_cls_f, c_cls_r], dim=0) if c_cls_f is not None else None
         return D_fake, D_real, mi, cls
@@ -501,7 +501,7 @@ class G_D(nn.Module):
       D_input = torch.cat([G_z, x], 0) if x is not None else G_z
       D_class = torch.cat([gy, dy], 0) if dy is not None else gy
       # Get Discriminator output
-      D_out, mi, cls, tP, tQ = self.D(D_input, D_class, add_bias=not train_G)
+      D_out, mi, cls, tP, tQ = self.D(D_input, D_class, add_bias=add_bias)
       if x is not None:
         return D_out[:G_z.shape[0]], D_out[G_z.shape[0]:], mi, cls  # D_fake, D_real, mi_fake, cls_fake
       else:
