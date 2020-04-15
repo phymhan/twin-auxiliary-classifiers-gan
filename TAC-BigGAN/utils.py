@@ -16,7 +16,7 @@ import datetime
 import json
 import pickle
 from argparse import ArgumentParser
-import animal_hash
+# import animal_hash
 
 import torch
 import torch.nn as nn
@@ -927,6 +927,8 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
         y = torch.arange(i * classes_per_sheet, (i + 1) * classes_per_sheet, device='cuda')
         for j in range(samples_per_class):
             z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
+            if G.fp16:
+                z_ = z_.half()
             with torch.no_grad():
                 if parallel:
                     o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))

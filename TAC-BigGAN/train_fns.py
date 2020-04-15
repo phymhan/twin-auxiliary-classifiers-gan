@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import utils
 import losses
 import numpy as np
-
+import pdb
 
 # Dummy training function for debugging
 def dummy_training_function():
@@ -73,6 +73,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     for step_index in range(config['num_D_steps']):
       # If accumulating gradients, loop multiple times before an optimizer step
       for accumulation_index in range(config['num_D_accumulations']):
+        pdb.set_trace()
         z_.sample_()
         y_.sample_()
         D_fake, D_real, mi, c_cls = GD(z_[:config['batch_size']], y_[:config['batch_size']],
@@ -83,12 +84,15 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         # the number of gradient accumulations
         D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
         C_loss = 0
+        if config['loss_type'] == 'MINE':
+            print('hello')
+            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
         if config['loss_type'] == 'Twin_AC':
-            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:] ,y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]] ,y_)
+            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
         if config['loss_type'] == 'Twin_AC_M':
             C_loss += hinge_multi(c_cls[D_fake.shape[0]:], y[counter]) + hinge_multi(mi[:D_fake.shape[0]], y_)
         if config['loss_type'] == 'AC':
-            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:] ,y[counter])
+            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
         D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight']) / float(config['num_D_accumulations'])
         D_loss.backward()
         counter += 1
@@ -100,7 +104,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         utils.ortho(D, config['D_ortho'])
       
       D.optim.step()
-    
+
+
+
+
     # Optionally toggle "requires_grad"
     utils.toggle_grad(D, False)
     utils.toggle_grad(G, True)

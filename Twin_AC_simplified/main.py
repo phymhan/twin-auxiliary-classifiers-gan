@@ -53,7 +53,7 @@ def args():
 
     FLAG.add_argument('--model_type', default='sa', help='network structure, "sa" and "big", biggan give you amazing result')
     FLAG.add_argument('--loss_type', default='Twin_AC', type=str, help='conditional loss funtion, Projection | Twin_AC | AC')
-    FLAG.add_argument('--SN', default=True, type=bool,help='SN in G')
+    FLAG.add_argument('--SN', default=True, type=bool, help='SN in G')
     arguments = FLAG.parse_args()
     return arguments
 
@@ -65,10 +65,10 @@ assert torch.cuda.is_available(), '[!] CUDA required!'
 
 def train_gan(opt):
 
-    os.makedirs(os.path.join(opt.savingroot,opt.dataset,'images'), exist_ok=True)
-    os.makedirs(os.path.join(opt.savingroot,opt.dataset,'chkpts'), exist_ok=True)
+    os.makedirs(os.path.join(opt.savingroot, opt.dataset, 'images'), exist_ok=True)
+    os.makedirs(os.path.join(opt.savingroot, opt.dataset, 'chkpts'), exist_ok=True)
 
-    #Build networ
+    # Build network
     if opt.model_type == 'sa':
         AC = False
         if opt.loss_type == 'Projection':
@@ -78,9 +78,9 @@ def train_gan(opt):
         elif opt.loss_type == 'AC':
             AC = True
         netd_g = nn.DataParallel(
-            SA_Discriminator(n_class=opt.num_classes, nc=opt.nc, AC=AC, Resolution=opt.image_size,ch=64).cuda())
+            SA_Discriminator(n_class=opt.num_classes, nc=opt.nc, AC=AC, Resolution=opt.image_size, ch=64).cuda())
         netg = nn.DataParallel(SA_Generator(n_class=opt.num_classes, code_dim=opt.nz, nc=opt.nc, SN=opt.SN,
-                                            Resolution=opt.image_size,ch=64).cuda())
+                                            Resolution=opt.image_size, ch=64).cuda())
     elif opt.model_type == 'big':
         AC = False
         if opt.loss_type == 'Projection':
@@ -90,8 +90,8 @@ def train_gan(opt):
         elif opt.loss_type == 'AC':
             AC = True
 
-        netd_g = nn.DataParallel(Discriminator(n_classes=opt.num_classes,resolution=opt.image_size,AC=AC).cuda())
-        netg = nn.DataParallel(Generator(n_classes=opt.num_classes,resolution=opt.image_size,SN=opt.SN).cuda())
+        netd_g = nn.DataParallel(Discriminator(n_classes=opt.num_classes, resolution=opt.image_size, AC=AC).cuda())
+        netg = nn.DataParallel(Generator(n_classes=opt.num_classes, resolution=opt.image_size, SN=opt.SN).cuda())
 
     if opt.data_r == 'MNIST':
         dataset = dset.MNIST(root=opt.dataroot, download=True, transform=tsfm)
@@ -114,7 +114,8 @@ def train_gan(opt):
 
     step = 0
 
-    train_g(netd_g,netg,dataset,step,opt)
+    train_g(netd_g, netg, dataset, step, opt)
+
 
 if __name__ == '__main__':
 

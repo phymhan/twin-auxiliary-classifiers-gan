@@ -2,3 +2,12 @@
 __pycache__
 .ipynb_checkpoints
 MOG/.ipynb_checkpoints
+Biggan_results*
+*.pyc
+*/*.pyc
+*/*/*.pyc
+*/*/*/*.pyc
+__pycache__
+*/__pycache__
+*/*/__pycache__
+*/*/*/__pycache__

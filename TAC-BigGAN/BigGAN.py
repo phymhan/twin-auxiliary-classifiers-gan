@@ -433,7 +433,7 @@ class Discriminator(nn.Module):
             proj = self.choose_prob(proj_c, y)
             out += proj
         # print('using projection')
-        return out,proj_c,proj_c
+        return out, proj_c, proj_c
 
 # Parallelized G_D to minimize cross-gpu communication
 # Without this, Generator outputs would get all-gathered and then rebroadcast.

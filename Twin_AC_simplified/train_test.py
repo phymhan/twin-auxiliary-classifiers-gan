@@ -13,12 +13,15 @@ import numpy as np
 
 import losses
 
+
 def denorm(x):
     return (x +1)/2
+
 
 def toggle_grad(model, on_or_off):
   for param in model.parameters():
     param.requires_grad = on_or_off
+
 
 class Distribution(torch.Tensor):
     # Init the params of the distribution
@@ -45,6 +48,7 @@ class Distribution(torch.Tensor):
         new_obj.data = super().to(*args, **kwargs)
         return new_obj
 
+
 def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', z_var=1.0):
     z_ = Distribution(torch.randn(G_batch_size, dim_z, requires_grad=False))
     z_.init_distribution('normal', mean=0, var=z_var)
@@ -55,6 +59,7 @@ def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', z_var=1.0):
     y_.init_distribution('categorical', num_categories=nclasses)
     y_ = y_.to(device, torch.long)
     return z_, y_
+
 
 def train_g(netd_g, netg, dataset, step, opt):
     noise, fake_label = prepare_z_y(G_batch_size=opt.batch_size, dim_z=opt.nz, nclasses=opt.num_classes)
@@ -69,7 +74,7 @@ def train_g(netd_g, netg, dataset, step, opt):
 
     for _ in pbar:
 
-        image_c,label = next(data_loader)
+        image_c, label = next(data_loader)
 
         # real_data0 = image_c[label==0][:24]
         # real_data1 = image_c[label==1][:24]
@@ -107,7 +112,7 @@ def train_g(netd_g, netg, dataset, step, opt):
         if step % 1000 == 0:
             torch.save({'G': netg.module.state_dict(),
                         'D': netd_g.module.state_dict(),
-                        'step':step}, os.path.join(opt.savingroot, opt.dataset, f'chkpts/g_{step:03d}.pth'))
+                        'step': step}, os.path.join(opt.savingroot, opt.dataset, f'chkpts/g_{step:03d}.pth'))
 
             # print(opt.C_w)
             #
@@ -120,8 +125,9 @@ def train_g(netd_g, netg, dataset, step, opt):
 
     return step
 
-def sample_data(dataset,opt):
-    loader = DataLoader(dataset, batch_size=opt.batch_size*opt.num_D_steps, shuffle=True, num_workers=opt.num_workers,drop_last=True, pin_memory=True)
+
+def sample_data(dataset, opt):
+    loader = DataLoader(dataset, batch_size=opt.batch_size*opt.num_D_steps, shuffle=True, num_workers=opt.num_workers, drop_last=True, pin_memory=True)
     # print(len(loader))
     loader = iter(loader)
 
@@ -176,7 +182,7 @@ def GAN_training_function(G, D, GD, z_, y_, config):
         for step_index in range(config.num_G_steps):
             z_.sample_()
             y_.sample_()
-            D_fake, mi,c_cls = GD(z_[:config.batch_size], y_[:config.batch_size], train_G=True)#D(fake_img, y_)
+            D_fake, mi, c_cls = GD(z_[:config.batch_size], y_[:config.batch_size], train_G=True)  # D(fake_img, y_)
             G_loss = losses.generator_loss(D_fake)
 
             C_loss = 0
@@ -208,21 +214,22 @@ def GAN_training_function(G, D, GD, z_, y_, config):
     return train
 
 
-def test(netg,step,opt):
+def test(netg, step, opt):
     netg.eval()
-    toggle_grad(netg,False)
+    toggle_grad(netg, False)
 
 
     for i in range(opt.num_classes):
         fixed = torch.randn(10, opt.nz).cuda()
         label = torch.ones(10).long().cuda()*i
         if i == 0:
-            fixed_input = netg(fixed,label)
+            fixed_input = netg(fixed, label)
         else:
-            fixed_input = torch.cat([fixed_input,netg(fixed,label)],dim=0)
+            fixed_input = torch.cat([fixed_input, netg(fixed, label)], dim=0)
 
     torchvision.utils.save_image(denorm(fixed_input.data), os.path.join(opt.savingroot,opt.dataset,f'images/fixed_{step:03d}.jpg'),nrow=10)
     toggle_grad(netg, True)
+
 
 def test_acc(model, test_loader):
     toggle_grad(model,False)
@@ -254,6 +261,7 @@ def test_acc(model, test_loader):
     toggle_grad(model, True)
 
     return correct / len(test_loader.dataset)*1.0
+
 
 def test_ac(g,c):
     toggle_grad(g,False)
