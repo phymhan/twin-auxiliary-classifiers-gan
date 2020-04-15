@@ -998,7 +998,7 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
     image_filename = '%s/%s/%d/interp%s%d.jpg' % (samples_root, experiment_name,
                                                   folder_number, interp_style,
                                                   sheet_number)
-    torchvision.utils.save_image(out_ims, image_filename,
+    torchvision.utils.save_image(out_ims.float(), image_filename,
                                  nrow=num_midpoints + 2, normalize=True)
 
 
