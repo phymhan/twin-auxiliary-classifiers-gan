@@ -16,7 +16,7 @@ import datetime
 import json
 import pickle
 from argparse import ArgumentParser
-# import animal_hash
+import animal_hash
 
 import torch
 import torch.nn as nn
@@ -71,7 +71,11 @@ def prepare_parser():
              '(default: %(default)s)')
     parser.add_argument(
         '--AC_weight', type=float, default=1.0,
-        help='Number of dataloader workers; consider using less for HDF5 '
+        help='weight for AC loss'
+             '(default: %(default)s)')
+    parser.add_argument(
+        '--MINE_weight', type=float, default=0.2,
+        help='weight for MINE loss'
              '(default: %(default)s)')
     parser.add_argument(
         '--G_param', type=str, default='SN',

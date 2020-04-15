@@ -12,17 +12,19 @@ import losses
 import numpy as np
 import pdb
 
+
 # Dummy training function for debugging
 def dummy_training_function():
   def train(x, y):
     return {}
   return train
 
-def hinge_multi(prob,y,hinge=True):
+
+def hinge_multi(prob, y, hinge=True):
 
     len = prob.size()[0]
 
-    index_list = [[],[]]
+    index_list = [[], []]
 
     for i in range(len):
         index_list[0].append(i)
@@ -85,12 +87,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
         C_loss = 0
         if config['loss_type'] == 'MINE':
-            print('hello')
-            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
+            C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
         if config['loss_type'] == 'Twin_AC':
             C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
-        if config['loss_type'] == 'Twin_AC_M':
-            C_loss += hinge_multi(c_cls[D_fake.shape[0]:], y[counter]) + hinge_multi(mi[:D_fake.shape[0]], y_)
         if config['loss_type'] == 'AC':
             C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
         D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight']) / float(config['num_D_accumulations'])
@@ -104,9 +103,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         utils.ortho(D, config['D_ortho'])
       
       D.optim.step()
-
-
-
 
     # Optionally toggle "requires_grad"
     utils.toggle_grad(D, False)
@@ -125,9 +121,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                 C_loss = F.cross_entropy(c_cls, y_)
                 if config['loss_type'] == 'Twin_AC':
                     MI_loss = F.cross_entropy(mi, y_)
-            if config['loss_type'] == 'Twin_AC_M':
-                C_loss = hinge_multi(c_cls, y_,hinge=False)
-                MI_loss = hinge_multi(mi, y_, hinge=False)
 
             G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
             C_loss = C_loss / float(config['num_G_accumulations'])
@@ -138,8 +131,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         if config['G_ortho'] > 0.0:
             print('using modified ortho reg in G')  # Debug print to indicate we're using ortho reg in G
             # Don't ortho reg shared, it makes no sense. Really we should blacklist any embeddings for this
-            utils.ortho(G, config['G_ortho'],
-                        blacklist=[param for param in G.shared.parameters()])
+            utils.ortho(G, config['G_ortho'], blacklist=[param for param in G.shared.parameters()])
         G.optim.step()
     
     # If we have an ema, update it, regardless of if we test with it or not
@@ -168,9 +160,9 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
   if config['num_save_copies'] > 0:
     utils.save_weights(G, D, state_dict, config['weights_root'],
                        experiment_name,
-                       'copy%d' %  state_dict['save_num'],
+                       'copy%d' % state_dict['save_num'],
                        G_ema if config['ema'] else None)
-    state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
+    state_dict['save_num'] = (state_dict['save_num'] + 1) % config['num_save_copies']
     
   # Use EMA G for samples or non-EMA?
   which_G = G_ema if config['ema'] and config['use_ema'] else G

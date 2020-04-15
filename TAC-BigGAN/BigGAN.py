@@ -51,6 +51,7 @@ def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
 
   return arch
 
+
 class Generator(nn.Module):
   def __init__(self, G_ch=64, dim_z=128, bottom_width=4, resolution=128,
                G_kernel_size=3, G_attn='64', n_classes=1000,
@@ -284,6 +285,7 @@ def D_arch(ch=64, attention='64',ksize='333333', dilation='111111'):
                               for i in range(2,6)}}
   return arch
 
+
 class Discriminator(nn.Module):
 
   def __init__(self, D_ch=64, D_wide=True, resolution=128,
@@ -291,7 +293,7 @@ class Discriminator(nn.Module):
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
                SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
-               D_init='ortho', skip_init=False, D_param='SN',AC=False, **kwargs):
+               D_init='ortho', skip_init=False, D_param='SN', AC=False, TAC=False, TP=False, TQ=False, **kwargs):
     super(Discriminator, self).__init__()
     saved_args = locals()
     print("Discriminator saved_args is", saved_args)
@@ -321,6 +323,9 @@ class Discriminator(nn.Module):
     self.arch = D_arch(self.ch, self.attention)[resolution]
 
     self.AC = AC
+    self.TAC = TAC
+    self.TP = TP
+    self.TQ = TQ
 
     # Which convs, batchnorms, and linear layers to use
     # No option to turn off SN in D right now
@@ -333,8 +338,8 @@ class Discriminator(nn.Module):
                           num_svs=num_D_SVs, num_itrs=num_D_SV_itrs,
                           eps=self.SN_eps)
       self.which_embedding = functools.partial(layers.SNEmbedding,
-                              num_svs=num_D_SVs, num_itrs=num_D_SV_itrs,
-                              eps=self.SN_eps)
+                             num_svs=num_D_SVs, num_itrs=num_D_SV_itrs,
+                             eps=self.SN_eps)
     # Prepare model
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
@@ -358,12 +363,25 @@ class Discriminator(nn.Module):
     # larger if we're e.g. turning this into a VAE with an inference output
     self.linear = self.which_linear(self.arch['out_channels'][-1], output_dim)
 
-    # Embedding for projection discrimination
     if self.AC:
-        self.linear_mi = self.which_linear(self.arch['out_channels'][-1], n_classes)
+      self.linear_c = self.which_linear(self.arch['out_channels'][-1], n_classes)
+    else:
+      # Embedding for projection discrimination
+      self.embed = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
+    if self.TAC:
+      self.linear_mi = self.which_linear(self.arch['out_channels'][-1], n_classes)
 
+    if self.TP:
+      self.linear_P = self.which_linear(self.arch['out_channels'][-1], 1)
+      self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
+      self.embed_cP = self.which_embedding(self.n_classes, 1)
+      self.ma_etP = None
+    if self.TQ:
+      self.linear_Q = self.which_linear(self.arch['out_channels'][-1], 1)
+      self.embed_vQ = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
+      self.embed_cQ = self.which_embedding(self.n_classes, 1)
+      self.ma_etQ = None
 
-    self.linear_c = self.which_linear(self.arch['out_channels'][-1], n_classes)
     # Initialize weights
     if not skip_init:
       self.init_weights()
@@ -374,20 +392,19 @@ class Discriminator(nn.Module):
       print('Using fp16 adam in D...')
       import utils
       self.optim = utils.Adam16(params=self.parameters(), lr=self.lr,
-                             betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
+                                betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
     else:
       self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
-                             betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
+                              betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
     # self.j = 0
 
-  # Initialize
-  def choose_prob(self,prob,y):
-      len = prob.size()[0]
+  def choose_prob(self, prob, y):
+      batch_size = prob.size()[0]
 
       index_list = [[], []]
-      for i in range(len):
+      for i in range(batch_size):
           index_list[0].append(i)
           index_list[1].append(np.asscalar(y[i].cpu().detach().numpy()))
 
@@ -395,6 +412,7 @@ class Discriminator(nn.Module):
       prob_choose = (prob_choose.squeeze()).unsqueeze(dim=1)
       return prob_choose
 
+  # Initialize
   def init_weights(self):
     self.param_count = 0
     for module in self.modules():
@@ -412,7 +430,7 @@ class Discriminator(nn.Module):
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
     print('Param count for D''s initialized parameters: %d' % self.param_count)
 
-  def forward(self, x, y=None):
+  def forward(self, x, y=None, add_bias=True):
     # Stick x into h for cleaner for loops without flow control
     h = x
     # Loop over blocks
@@ -423,17 +441,26 @@ class Discriminator(nn.Module):
     h = torch.sum(self.activation(h), [2, 3])
     # Get initial class-unconditional output
     out = self.linear(h)
+
+    out_mi = None
+    out_c = None
+    tP = None
+    tQ = None
     if self.AC:
-        out_mi = self.linear_mi(h)
-        out_c = self.linear_c(h)
-        return out, out_mi, out_c
-    else:
-        proj_c = self.linear_c(h)
-        if y is not None:
-            proj = self.choose_prob(proj_c, y)
-            out += proj
-        # print('using projection')
-        return out, proj_c, proj_c
+      out_c = self.linear_c(h)
+    else:  # projection
+      out = out + torch.sum(self.embed(y) * h, 1, keepdim=True)
+    if self.TAC:
+      out_mi = self.linear_mi(h)
+    if self.TP:
+      cP = self.embed_cP(y) if add_bias else 0.
+      tP = self.linear_P(h) + torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + cP
+    if self.TQ:
+      cQ = self.embed_cQ(y) if add_bias else 0.
+      tQ = self.linear_Q(h) + torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + cQ
+
+    return out, out_mi, out_c, tP, tQ
+
 
 # Parallelized G_D to minimize cross-gpu communication
 # Without this, Generator outputs would get all-gathered and then rebroadcast.
@@ -443,12 +470,11 @@ class G_D(nn.Module):
     self.G = G
     self.D = D
 
-  def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False,
-              split_D=False):
+  def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False, split_D=False):
     # If training G, enable grad tape
     with torch.set_grad_enabled(train_G):
-      # Get Generator output given noise
-      G_z = self.G(z, self.G.shared(gy))
+      # Get Generator output given noise and label
+      G_z = self.G(z, self.G.shared(gy))  # G(z, y)
       # Cast as necessary
       if self.G.fp16 and not self.D.fp16:
         G_z = G_z.float()
@@ -457,13 +483,15 @@ class G_D(nn.Module):
     # Split_D means to run D once with real data and once with fake,
     # rather than concatenating along the batch dimension.
     if split_D:
-      D_fake, mi_f, c_cls_f = self.D(G_z, gy)
+      D_fake, mi_f, c_cls_f, tP_f, tQ_f = self.D(G_z, gy, add_bias=not train_G)
       if x is not None:
-        D_real,mi_r, c_cls_r = self.D(x, dy)
-        return D_fake, D_real, torch.cat([mi_f,mi_r],dim=0), torch.cat([c_cls_f,c_cls_r],dim=0)
+        D_real, mi_r, c_cls_r, tP_r, tQ_r = self.D(x, dy, add_bias=not train_G)
+        mi = torch.cat([mi_f, mi_r], dim=0) if mi_f is not None else None
+        cls = torch.cat([c_cls_f, c_cls_r], dim=0) if c_cls_f is not None else None
+        return D_fake, D_real, mi, cls
       else:
         if return_G_z:
-          return D_fake, G_z
+          return D_fake, G_z, mi_f, c_cls_f
         else:
           return D_fake, mi_f, c_cls_f
     # If real data is provided, concatenate it with the Generator's output
@@ -472,9 +500,9 @@ class G_D(nn.Module):
       D_input = torch.cat([G_z, x], 0) if x is not None else G_z
       D_class = torch.cat([gy, dy], 0) if dy is not None else gy
       # Get Discriminator output
-      D_out, mi, cls = self.D(D_input, D_class)
+      D_out, mi, cls = self.D(D_input, D_class, add_bias=not train_G)
       if x is not None:
-        return D_out[:G_z.shape[0]], D_out[G_z.shape[0]:],mi, cls # D_fake, D_real
+        return D_out[:G_z.shape[0]], D_out[G_z.shape[0]:], mi, cls  # D_fake, D_real, mi_fake, cls_fake
       else:
         if return_G_z:
           return D_out, G_z, mi, cls
