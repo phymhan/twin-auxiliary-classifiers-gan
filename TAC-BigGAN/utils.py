@@ -69,6 +69,9 @@ def prepare_parser():
         '--train_AC_on_fake', action='store_true', default=False,
         help='Train AC on fake? (default: %(default)s)')
     parser.add_argument(
+        '--Projection', action='store_true', default=False,
+        help='Use Projection? (default: %(default)s)')
+    parser.add_argument(
         '--AC', action='store_true', default=False,
         help='Use AC? (default: %(default)s)')
     parser.add_argument(
@@ -85,13 +88,16 @@ def prepare_parser():
         help='Use spectral normalization in embedding layer.')
     parser.add_argument(
         '--AC_weight', type=float, default=1.0,
-        help='weight for AC loss (default: %(default)s)')
+        help='Weight for AC loss (default: %(default)s)')
     parser.add_argument(
         '--MINE_weight', type=float, default=0.2,
-        help='weight for MINE loss(default: %(default)s)')
+        help='Weight for MINE loss (default: %(default)s)')
+    parser.add_argument(
+        '--weighted_MINE_loss', action='store_true', default=False,
+        help='Use weighted MINE loss when training D? (default: %(default)s)')
     parser.add_argument(
         '--fCGAN_weight', type=float, default=0.2,
-        help='weight for fCGAN loss(default: %(default)s)')
+        help='Weight for fCGAN loss (default: %(default)s)')
     parser.add_argument(
         '--G_param', type=str, default='SN',
         help='Parameterization style to use for G, spectral norm (SN) or SVD (SVD)'

@@ -66,6 +66,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     x = torch.split(x, config['batch_size'])
     y = torch.split(y, config['batch_size'])
     counter = 0
+    MINE_weight = config['MINE_weight'] if config['weighted_MINE_loss'] else 1.0
     
     # Optionally toggle D and G's "require_grad"
 
@@ -78,25 +79,24 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         half_size = config['batch_size']
         z_.sample_()
         y_.sample_()
-        gy_bar = y_[torch.randperm(half_size), ...]
-        dy_bar = y[counter][torch.randperm(half_size), ...]
+        gy_bar = y_[torch.randperm(half_size), ...] if D.TQ else None
+        dy_bar = y[counter][torch.randperm(half_size), ...] if D.TP else None
         D_fake, D_real, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_[:config['batch_size']], y_[:config['batch_size']],
                                                                x[counter], y[counter], gy_bar, dy_bar,
                                                                train_G=False, split_D=config['split_D'], add_bias=True)
-        # Compute components of D's loss, average them, and divide by 
-        # the number of gradient accumulations
+        # Compute components of D's loss, average them, and divide by the number of gradient accumulations
         D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
         C_loss = 0.
         MI_P = 0.
         MI_Q = 0.
         if config['loss_type'] == 'fCGAN':
-          # MINE-P
+          # MINE-P on real
           etP_bar = torch.mean(torch.exp(tP_bar[half_size:]))
           if D.ma_etP_bar is None:
             D.ma_etP_bar = etP_bar.detach().item()
           D.ma_etP_bar += config['ma_rate'] * (etP_bar.detach().item() - D.ma_etP_bar)
           MI_P = torch.mean(tP[half_size:]) - torch.log(etP_bar) * etP_bar.detach() / D.ma_etP_bar
-          # MINE-Q
+          # MINE-Q on fake
           etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
           if D.ma_etQ_bar is None:
             D.ma_etQ_bar = etQ_bar.detach().item()
@@ -104,7 +104,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar) * etQ_bar.detach() / D.ma_etQ_bar
         if config['loss_type'] == 'MINE':
           C_loss += F.cross_entropy(c_cls[half_size:], y[counter])
-          # MINE-Q
+          if config['train_AC_on_fake']:
+            C_loss += F.cross_entropy(c_cls[:half_size], y_)
+          # MINE-Q on fake
           etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
           if D.ma_etQ_bar is None:
             D.ma_etQ_bar = etQ_bar.detach().item()
@@ -118,8 +120,8 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           C_loss += F.cross_entropy(c_cls[half_size:], y[counter])  # AC should be trained on fake also
           if config['train_AC_on_fake']:
             C_loss += F.cross_entropy(c_cls[:half_size], y_)
-        D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight'] - MI_P - MI_Q
-                  ) / float(config['num_D_accumulations'])  # TODO: weighted MI_P and MI_Q?
+        D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight'] - (MI_P + MI_Q)*MINE_weight
+                  ) / float(config['num_D_accumulations'])
         D_loss.backward()
         counter += 1
         
@@ -142,20 +144,20 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         half_size = config['batch_size']
         z_.sample_()
         y_.sample_()
-        gy_bar = y_[torch.randperm(half_size), ...]
+        gy_bar = y_[torch.randperm(half_size), ...] if D.TQ else None
         D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
                                                             train_G=True, split_D=config['split_D'],
                                                             return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
         C_loss = 0.
         MI_loss = 0.
-        MI_Q = 0.
+        MI_Q_loss = 0.
         f_div = 0.
         if config['loss_type'] == 'fCGAN':
           # f-div
           f_div = (tQ - tP).mean()  # rev-kl
         if config['loss_type'] == 'MINE':
           # MINE-Q
-          MI_Q = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
+          MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
         if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
           C_loss = F.cross_entropy(c_cls, y_)
           if config['loss_type'] == 'Twin_AC':
@@ -164,9 +166,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
         C_loss = C_loss / float(config['num_G_accumulations'])
         MI_loss = MI_loss / float(config['num_G_accumulations'])
-        MI_Q = MI_Q / float(config['num_G_accumulations'])
+        MI_Q_loss = MI_Q_loss / float(config['num_G_accumulations'])
         f_div = f_div / float(config['num_G_accumulations'])
-        (G_loss + (C_loss - MI_loss)*config['AC_weight'] + MI_Q*config['MINE_weight'] + f_div*config['fCGAN_weight']
+        (G_loss + (C_loss - MI_loss)*config['AC_weight'] + MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']
          ).backward()
 
         # Optionally apply modified ortho reg in G

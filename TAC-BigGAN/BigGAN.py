@@ -293,8 +293,8 @@ class Discriminator(nn.Module):
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
                SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
-               D_init='ortho', skip_init=False, D_param='SN', AC=False, TAC=False, TP=False, TQ=False, embed_sn=True,
-               **kwargs):
+               D_init='ortho', skip_init=False, D_param='SN', Projection=True, AC=False, TAC=False, TP=False, TQ=False,
+               embed_sn=True, **kwargs):
     super(Discriminator, self).__init__()
     saved_args = locals()
     print("Discriminator saved_args is", saved_args)
@@ -323,6 +323,7 @@ class Discriminator(nn.Module):
     # Architecture
     self.arch = D_arch(self.ch, self.attention)[resolution]
 
+    self.Projection = Projection
     self.AC = AC
     self.TAC = TAC
     self.TP = TP
@@ -364,14 +365,13 @@ class Discriminator(nn.Module):
     # larger if we're e.g. turning this into a VAE with an inference output
     self.linear = self.which_linear(self.arch['out_channels'][-1], output_dim)
 
-    if self.AC:
-      self.linear_c = self.which_linear(self.arch['out_channels'][-1], n_classes)
-    else:
+    if self.Projection:
       # Embedding for projection discrimination
       self.embed = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
+    if self.AC:
+      self.linear_c = self.which_linear(self.arch['out_channels'][-1], n_classes)
     if self.TAC:
       self.linear_mi = self.which_linear(self.arch['out_channels'][-1], n_classes)
-
     if self.TP:
       self.linear_P = self.which_linear(self.arch['out_channels'][-1], 1)
       self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
@@ -449,10 +449,10 @@ class Discriminator(nn.Module):
     tQ = None
     tP_bar = None
     tQ_bar = None
+    if self.Projection:
+      out = out + torch.sum(self.embed(y) * h, 1, keepdim=True)
     if self.AC:
       out_c = self.linear_c(h)
-    else:  # projection
-      out = out + torch.sum(self.embed(y) * h, 1, keepdim=True)
     if self.TAC:
       out_mi = self.linear_mi(h)
     if self.TP:
