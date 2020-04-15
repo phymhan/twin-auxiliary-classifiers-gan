@@ -376,12 +376,12 @@ class Discriminator(nn.Module):
       self.linear_P = self.which_linear(self.arch['out_channels'][-1], 1)
       self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
       self.embed_cP = self.which_embedding(self.n_classes, 1) if embed_sn else nn.Embedding(self.n_classes, 1)
-      self.ma_etP = None
+      self.ma_etP_bar = None
     if self.TQ:
       self.linear_Q = self.which_linear(self.arch['out_channels'][-1], 1)
       self.embed_vQ = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
       self.embed_cQ = self.which_embedding(self.n_classes, 1) if embed_sn else nn.Embedding(self.n_classes, 1)
-      self.ma_etQ = None
+      self.ma_etQ_bar = None
 
     # Initialize weights
     if not skip_init:
@@ -431,7 +431,7 @@ class Discriminator(nn.Module):
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
     print('Param count for D''s initialized parameters: %d' % self.param_count)
 
-  def forward(self, x, y=None, add_bias=True):
+  def forward(self, x, y=None, y_bar=None, add_bias=True):
     # Stick x into h for cleaner for loops without flow control
     h = x
     # Loop over blocks
@@ -447,6 +447,8 @@ class Discriminator(nn.Module):
     out_c = None
     tP = None
     tQ = None
+    tP_bar = None
+    tQ_bar = None
     if self.AC:
       out_c = self.linear_c(h)
     else:  # projection
@@ -454,13 +456,21 @@ class Discriminator(nn.Module):
     if self.TAC:
       out_mi = self.linear_mi(h)
     if self.TP:
+      psi_phi_x = self.linear_P(h)
       cP = self.embed_cP(y) if add_bias else 0.
-      tP = self.linear_P(h) + torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + cP
+      tP = psi_phi_x + torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + cP
+      if y_bar is not None:
+        cP_bar = self.embed_cP(y_bar) if add_bias else 0.
+        tP_bar = psi_phi_x + torch.sum(self.embed_vP(y_bar) * h, 1, keepdim=True) + cP_bar
     if self.TQ:
+      psi_phi_x = self.linear_Q(h)
       cQ = self.embed_cQ(y) if add_bias else 0.
-      tQ = self.linear_Q(h) + torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + cQ
+      tQ = psi_phi_x + torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + cQ
+      if y_bar is not None:
+        cQ_bar = self.embed_cQ(y_bar) if add_bias else 0.
+        tQ_bar = psi_phi_x + torch.sum(self.embed_vQ(y_bar) * h, 1, keepdim=True) + cQ_bar
 
-    return out, out_mi, out_c, tP, tQ
+    return out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar
 
 
 # Parallelized G_D to minimize cross-gpu communication
@@ -471,7 +481,8 @@ class G_D(nn.Module):
     self.G = G
     self.D = D
 
-  def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False, split_D=False, add_bias=True):
+  def forward(self, z, gy, x=None, dy=None, gy_bar=None, dy_bar=None,
+              train_G=False, return_G_z=False, split_D=False, add_bias=True):
     # If training G, enable grad tape
     with torch.set_grad_enabled(train_G):
       # Get Generator output given noise and label
@@ -484,28 +495,33 @@ class G_D(nn.Module):
     # Split_D means to run D once with real data and once with fake,
     # rather than concatenating along the batch dimension.
     if split_D:
-      D_fake, mi_f, c_cls_f, tP_f, tQ_f = self.D(G_z, gy, add_bias=add_bias)
+      D_fake, mi_f, c_cls_f, tP_f, tP_bar_f, tQ_f, tQ_bar_f = self.D(G_z, gy, gy_bar, add_bias=add_bias)
       if x is not None:
-        D_real, mi_r, c_cls_r, tP_r, tQ_r = self.D(x, dy, add_bias=add_bias)
+        D_real, mi_r, c_cls_r, tP_r, tP_bar_r, tQ_r, tQ_bar_r = self.D(x, dy, dy_bar, add_bias=add_bias)
         mi = torch.cat([mi_f, mi_r], dim=0) if mi_f is not None else None
         cls = torch.cat([c_cls_f, c_cls_r], dim=0) if c_cls_f is not None else None
-        return D_fake, D_real, mi, cls
+        tP = torch.cat([tP_f, tP_r], dim=0) if tP_f is not None else None
+        tQ = torch.cat([tQ_f, tQ_r], dim=0) if tQ_f is not None else None
+        tP_bar = torch.cat([tP_bar_f, tP_bar_r], dim=0) if tP_bar_f is not None else None
+        tQ_bar = torch.cat([tQ_bar_f, tQ_bar_r], dim=0) if tQ_bar_f is not None else None
+        return D_fake, D_real, mi, cls, tP, tP_bar, tQ, tQ_bar
       else:
         if return_G_z:
-          return D_fake, G_z, mi_f, c_cls_f
+          return D_fake, G_z, mi_f, c_cls_f, tP_f, tP_bar_f, tQ_f, tQ_bar_f
         else:
-          return D_fake, mi_f, c_cls_f
+          return D_fake, mi_f, c_cls_f, tP_f, tP_bar_f, tQ_f, tQ_bar_f
     # If real data is provided, concatenate it with the Generator's output
     # along the batch dimension for improved efficiency.
     else:
       D_input = torch.cat([G_z, x], 0) if x is not None else G_z
       D_class = torch.cat([gy, dy], 0) if dy is not None else gy
+      D_y_bar = torch.cat([gy_bar, dy_bar], 0) if dy_bar is not None else gy_bar
       # Get Discriminator output
-      D_out, mi, cls, tP, tQ = self.D(D_input, D_class, add_bias=add_bias)
+      D_out, mi, cls, tP, tP_bar, tQ, tQ_bar = self.D(D_input, D_class, D_y_bar, add_bias=add_bias)
       if x is not None:
-        return D_out[:G_z.shape[0]], D_out[G_z.shape[0]:], mi, cls  # D_fake, D_real, mi_fake, cls_fake
+        return D_out[:G_z.shape[0]], D_out[G_z.shape[0]:], mi, cls, tP, tP_bar, tQ, tQ_bar
       else:
         if return_G_z:
-          return D_out, G_z, mi, cls
+          return D_out, G_z, mi, cls, tP, tP_bar, tQ, tQ_bar
         else:
-          return D_out, mi, cls
+          return D_out, mi, cls, tP, tP_bar, tQ, tQ_bar

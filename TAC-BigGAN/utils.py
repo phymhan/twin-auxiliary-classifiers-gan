@@ -64,7 +64,7 @@ def prepare_parser():
         help='Name of the model module (default: %(default)s)')
     parser.add_argument(
         '--loss_type', type=str, default='Twin_AC',
-        help='Name of the model module (default: %(default)s)')
+        help='Loss type ([Projection | AC | Twin_AC | MINE | fCGAN] default: %(default)s)')
     parser.add_argument(
         '--train_AC_on_fake', action='store_true', default=False,
         help='Train AC on fake? (default: %(default)s)')
@@ -89,6 +89,9 @@ def prepare_parser():
     parser.add_argument(
         '--MINE_weight', type=float, default=0.2,
         help='weight for MINE loss(default: %(default)s)')
+    parser.add_argument(
+        '--fCGAN_weight', type=float, default=0.2,
+        help='weight for fCGAN loss(default: %(default)s)')
     parser.add_argument(
         '--G_param', type=str, default='SN',
         help='Parameterization style to use for G, spectral norm (SN) or SVD (SVD)'
@@ -170,6 +173,9 @@ def prepare_parser():
              '(default: %(default)s)')
 
     ### Optimizer stuff ###
+    parser.add_argument(
+        '--ma_rate', type=float, default=1e-4,
+        help='Moving average rate (default: %(default)s)')
     parser.add_argument(
         '--G_lr', type=float, default=5e-5,
         help='Learning rate to use for Generator (default: %(default)s)')
@@ -1001,7 +1007,7 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
     image_filename = '%s/%s/%d/interp%s%d.jpg' % (samples_root, experiment_name,
                                                   folder_number, interp_style,
                                                   sheet_number)
-    torchvision.utils.save_image(out_ims.float(), image_filename,
+    torchvision.utils.save_image(out_ims.float() if G.fp16 else out_ims, image_filename,
                                  nrow=num_midpoints + 2, normalize=True)
 
 

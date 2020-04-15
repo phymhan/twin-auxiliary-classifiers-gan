@@ -75,28 +75,51 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     for step_index in range(config['num_D_steps']):
       # If accumulating gradients, loop multiple times before an optimizer step
       for accumulation_index in range(config['num_D_accumulations']):
+        half_size = config['batch_size']
         z_.sample_()
         y_.sample_()
-        D_fake, D_real, mi, c_cls = GD(z_[:config['batch_size']], y_[:config['batch_size']],
-                            x[counter], y[counter], train_G=False, 
-                            split_D=config['split_D'], add_bias=True)
-
+        gy_bar = y_[torch.randperm(half_size), ...]
+        dy_bar = y[counter][torch.randperm(half_size), ...]
+        D_fake, D_real, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_[:config['batch_size']], y_[:config['batch_size']],
+                                                               x[counter], y[counter], gy_bar, dy_bar,
+                                                               train_G=False, split_D=config['split_D'], add_bias=True)
         # Compute components of D's loss, average them, and divide by 
         # the number of gradient accumulations
         D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
-        C_loss = 0
+        C_loss = 0.
+        MI_P = 0.
+        MI_Q = 0.
+        if config['loss_type'] == 'fCGAN':
+          # MINE-P
+          etP_bar = torch.mean(torch.exp(tP_bar[half_size:]))
+          if D.ma_etP_bar is None:
+            D.ma_etP_bar = etP_bar.detach().item()
+          D.ma_etP_bar += config['ma_rate'] * (etP_bar.detach().item() - D.ma_etP_bar)
+          MI_P = torch.mean(tP[half_size:]) - torch.log(etP_bar) * etP_bar.detach() / D.ma_etP_bar
+          # MINE-Q
+          etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
+          if D.ma_etQ_bar is None:
+            D.ma_etQ_bar = etQ_bar.detach().item()
+          D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
+          MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar) * etQ_bar.detach() / D.ma_etQ_bar
         if config['loss_type'] == 'MINE':
-          C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])
+          C_loss += F.cross_entropy(c_cls[half_size:], y[counter])
+          # MINE-Q
+          etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
+          if D.ma_etQ_bar is None:
+            D.ma_etQ_bar = etQ_bar.detach().item()
+          D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
+          MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar) * etQ_bar.detach() / D.ma_etQ_bar
         if config['loss_type'] == 'Twin_AC':
-          C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter]) + F.cross_entropy(mi[:D_fake.shape[0]], y_)
+          C_loss += F.cross_entropy(c_cls[half_size:], y[counter]) + F.cross_entropy(mi[:half_size], y_)
           if config['train_AC_on_fake']:
-            pdb.set_trace()
-            C_loss += F.cross_entropy(c_cls[:D_fake.shape[0]], y_)
+            C_loss += F.cross_entropy(c_cls[:half_size], y_)
         if config['loss_type'] == 'AC':
-          C_loss += F.cross_entropy(c_cls[D_fake.shape[0]:], y[counter])  # AC should be trained on fake also
+          C_loss += F.cross_entropy(c_cls[half_size:], y[counter])  # AC should be trained on fake also
           if config['train_AC_on_fake']:
-            C_loss += F.cross_entropy(c_cls[:D_fake.shape[0]], y_)
-        D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight']) / float(config['num_D_accumulations'])
+            C_loss += F.cross_entropy(c_cls[:half_size], y_)
+        D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight'] - MI_P - MI_Q
+                  ) / float(config['num_D_accumulations'])  # TODO: weighted MI_P and MI_Q?
         D_loss.backward()
         counter += 1
         
@@ -116,11 +139,23 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     G.optim.zero_grad()
     for step_index in range(config['num_G_steps']):
       for accumulation_index in range(config['num_G_accumulations']):
+        half_size = config['batch_size']
         z_.sample_()
         y_.sample_()
-        D_fake, G_z, mi, c_cls = GD(z_, y_, train_G=True, split_D=config['split_D'], return_G_z=True)
-        C_loss = 0
-        MI_loss = 0
+        gy_bar = y_[torch.randperm(half_size), ...]
+        D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
+                                                            train_G=True, split_D=config['split_D'],
+                                                            return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
+        C_loss = 0.
+        MI_loss = 0.
+        MI_Q = 0.
+        f_div = 0.
+        if config['loss_type'] == 'fCGAN':
+          # f-div
+          f_div = (tQ - tP).mean()  # rev-kl
+        if config['loss_type'] == 'MINE':
+          # MINE-Q
+          MI_Q = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
         if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
           C_loss = F.cross_entropy(c_cls, y_)
           if config['loss_type'] == 'Twin_AC':
@@ -129,7 +164,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
         C_loss = C_loss / float(config['num_G_accumulations'])
         MI_loss = MI_loss / float(config['num_G_accumulations'])
-        (G_loss + (C_loss - MI_loss)*config['AC_weight']).backward()
+        MI_Q = MI_Q / float(config['num_G_accumulations'])
+        f_div = f_div / float(config['num_G_accumulations'])
+        (G_loss + (C_loss - MI_loss)*config['AC_weight'] + MI_Q*config['MINE_weight'] + f_div*config['fCGAN_weight']
+         ).backward()
 
         # Optionally apply modified ortho reg in G
         if config['G_ortho'] > 0.0:
@@ -146,11 +184,14 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
            'D_loss_real': float(D_loss_real.item()),
            'D_loss_fake': float(D_loss_fake.item()),
            'C_loss': C_loss,
-           'MI_loss': MI_loss}
+           'MI_loss': MI_loss,
+           'f_div': f_div,
+           'MI_Q': MI_Q}
     # Return G's loss and the components of D's loss.
     return out
   return train
-  
+
+
 ''' This function takes in the model, saves the weights (multiple copies if 
     requested), and prepares sample sheets: one consisting of samples given
     a fixed noise seed (to show how the model evolves throughout training),
