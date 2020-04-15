@@ -67,7 +67,19 @@ def prepare_parser():
         help='Name of the model module (default: %(default)s)')
     parser.add_argument(
         '--AC', action='store_true', default=False,
-        help='Run G in eval mode (running/standing stats?) at sample/test time? '
+        help='Use AC? '
+             '(default: %(default)s)')
+    parser.add_argument(
+        '--TAC', action='store_true', default=False,
+        help='Use Twin AC? '
+             '(default: %(default)s)')
+    parser.add_argument(
+        '--TP', action='store_true', default=False,
+        help='Use MINE for real data? '
+             '(default: %(default)s)')
+    parser.add_argument(
+        '--TQ', action='store_true', default=False,
+        help='Use MINE for fake data? '
              '(default: %(default)s)')
     parser.add_argument(
         '--AC_weight', type=float, default=1.0,
