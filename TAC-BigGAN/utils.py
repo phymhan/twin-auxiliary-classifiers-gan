@@ -66,6 +66,9 @@ def prepare_parser():
         '--loss_type', type=str, default='Twin_AC',
         help='Loss type ([Projection | AC | Twin_AC | MINE | fCGAN] default: %(default)s)')
     parser.add_argument(
+        '--GAN_loss', type=str, default='hinge',
+        help='GAN loss ([hinge | dcgan | vanilla | wgangp] default: %(default)s)')
+    parser.add_argument(
         '--train_AC_on_fake', action='store_true', default=False,
         help='Train AC on fake? (default: %(default)s)')
     parser.add_argument(

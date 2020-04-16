@@ -59,6 +59,16 @@ def hinge_multi(prob, y, hinge=True):
 
 
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+  if config['GAN_loss'] == 'hinge':
+    discriminator_loss, generator_loss = losses.loss_hinge_dis, losses.loss_hinge_gen
+  elif config['GAN_loss'] == 'dcgan':
+    discriminator_loss, generator_loss = losses.loss_dcgan_dis, losses.loss_dcgan_gen
+  elif config['GAN_loss'] == 'vanilla':
+    discriminator_loss, generator_loss = losses.loss_bce_dis, losses.loss_bce_gen
+  elif config['GAN_loss'] == 'lsgan':
+    discriminator_loss, generator_loss = losses.loss_lsgan_dis, losses.loss_lsgan_gen
+  else:
+    raise NotImplementedError
   def train(x, y):
     G.optim.zero_grad()
     D.optim.zero_grad()
@@ -84,8 +94,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         D_fake, D_real, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_[:config['batch_size']], y_[:config['batch_size']],
                                                                x[counter], y[counter], gy_bar, dy_bar,
                                                                train_G=False, split_D=config['split_D'], add_bias=True)
+        print(tQ.size())
         # Compute components of D's loss, average them, and divide by the number of gradient accumulations
-        D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
+        D_loss_real, D_loss_fake = discriminator_loss(D_fake, D_real)
         C_loss = 0.
         MI_P = 0.
         MI_Q = 0.
@@ -167,7 +178,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           if config['loss_type'] == 'Twin_AC':
             MI_loss = F.cross_entropy(mi, y_)
 
-        G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
+        G_loss = generator_loss(D_fake) / float(config['num_G_accumulations'])
         C_loss = C_loss / float(config['num_G_accumulations'])
         MI_loss = MI_loss / float(config['num_G_accumulations'])
         MI_Q_loss = MI_Q_loss / float(config['num_G_accumulations'])
