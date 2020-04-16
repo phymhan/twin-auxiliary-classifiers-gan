@@ -94,7 +94,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         D_fake, D_real, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_[:config['batch_size']], y_[:config['batch_size']],
                                                                x[counter], y[counter], gy_bar, dy_bar,
                                                                train_G=False, split_D=config['split_D'], add_bias=True)
-        print(tQ.size())
         # Compute components of D's loss, average them, and divide by the number of gradient accumulations
         D_loss_real, D_loss_fake = discriminator_loss(D_fake, D_real)
         C_loss = 0.
@@ -160,7 +159,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
                                                             train_G=True, split_D=config['split_D'],
                                                             return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
-        print(tQ.size())
         C_loss = 0.
         MI_loss = 0.
         MI_Q_loss = 0.
