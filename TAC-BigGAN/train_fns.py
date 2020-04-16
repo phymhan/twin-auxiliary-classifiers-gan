@@ -69,6 +69,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     discriminator_loss, generator_loss = losses.loss_lsgan_dis, losses.loss_lsgan_gen
   else:
     raise NotImplementedError
+
   def train(x, y):
     G.optim.zero_grad()
     D.optim.zero_grad()
@@ -181,8 +182,8 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         MI_loss = MI_loss / float(config['num_G_accumulations'])
         MI_Q_loss = MI_Q_loss / float(config['num_G_accumulations'])
         f_div = f_div / float(config['num_G_accumulations'])
-        (G_loss + (C_loss - MI_loss)*config['AC_weight'] + MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']
-         ).backward()
+        (G_loss + (C_loss - MI_loss)*config['AC_weight'] +
+         MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']).backward()
 
         # Optionally apply modified ortho reg in G
         if config['G_ortho'] > 0.0:

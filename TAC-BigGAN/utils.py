@@ -75,6 +75,9 @@ def prepare_parser():
         '--Projection', action='store_true', default=False,
         help='Use Projection? (default: %(default)s)')
     parser.add_argument(
+        '--use_softmax', action='store_true', default=False,
+        help='Use softmax in projection? (default: %(default)s)')
+    parser.add_argument(
         '--AC', action='store_true', default=False,
         help='Use AC? (default: %(default)s)')
     parser.add_argument(
@@ -183,7 +186,7 @@ def prepare_parser():
 
     ### Optimizer stuff ###
     parser.add_argument(
-        '--ma_rate', type=float, default=1e-4,
+        '--ma_rate', type=float, default=0.001,
         help='Moving average rate (default: %(default)s)')
     parser.add_argument(
         '--G_lr', type=float, default=5e-5,

@@ -294,7 +294,7 @@ class Discriminator(nn.Module):
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
                SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
                D_init='ortho', skip_init=False, D_param='SN', Projection=True, AC=False, TAC=False, TP=False, TQ=False,
-               embed_sn=True, **kwargs):
+               use_softmax=False, embed_sn=True, **kwargs):
     super(Discriminator, self).__init__()
     saved_args = locals()
     print("Discriminator saved_args is", saved_args)
@@ -328,6 +328,7 @@ class Discriminator(nn.Module):
     self.TAC = TAC
     self.TP = TP
     self.TQ = TQ
+    self.use_softmax = use_softmax
 
     # Which convs, batchnorms, and linear layers to use
     # No option to turn off SN in D right now
@@ -373,13 +374,19 @@ class Discriminator(nn.Module):
     if self.TAC:
       self.linear_mi = self.which_linear(self.arch['out_channels'][-1], n_classes)
     if self.TP:
-      self.linear_P = self.which_linear(self.arch['out_channels'][-1], 1)
-      self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
+      if self.use_softmax:
+        self.linear_P = self.which_linear(self.arch['out_channels'][-1], n_classes)
+      else:
+        self.linear_P = self.which_linear(self.arch['out_channels'][-1], 1)
+        self.embed_vP = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
       self.embed_cP = self.which_embedding(self.n_classes, 1) if embed_sn else nn.Embedding(self.n_classes, 1)
       self.ma_etP_bar = None
     if self.TQ:
-      self.linear_Q = self.which_linear(self.arch['out_channels'][-1], 1)
-      self.embed_vQ = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
+      if self.use_softmax:
+        self.linear_Q = self.which_linear(self.arch['out_channels'][-1], n_classes)
+      else:
+        self.linear_Q = self.which_linear(self.arch['out_channels'][-1], 1)
+        self.embed_vQ = self.which_embedding(self.n_classes, self.arch['out_channels'][-1]) if embed_sn else nn.Embedding(self.n_classes, self.arch['out_channels'][-1])
       self.embed_cQ = self.which_embedding(self.n_classes, 1) if embed_sn else nn.Embedding(self.n_classes, 1)
       self.ma_etQ_bar = None
 
@@ -456,19 +463,33 @@ class Discriminator(nn.Module):
     if self.TAC:
       out_mi = self.linear_mi(h)
     if self.TP:
-      out_P = self.linear_P(h)
       cP = self.embed_cP(y) if add_bias else 0.
-      tP = out_P + torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + cP
+      out_P = self.linear_P(h)
+      if self.use_softmax:
+        logP = torch.log(torch.softmax(out_P, dim=1))
+        tP = logP[range(y.size(0)), y].view(y.size(0), 1) + cP
+      else:
+        tP = torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + out_P + cP
       if y_bar is not None:
         cP_bar = self.embed_cP(y_bar) if add_bias else 0.
-        tP_bar = out_P + torch.sum(self.embed_vP(y_bar) * h, 1, keepdim=True) + cP_bar
+        if self.use_softmax:
+          tP_bar = logP[range(y.size(0)), y_bar].view(y.size(0), 1) + cP_bar
+        else:
+          tP_bar = torch.sum(self.embed_vP(y_bar) * h, 1, keepdim=True) + out_P + cP_bar
     if self.TQ:
-      out_Q = self.linear_Q(h)
       cQ = self.embed_cQ(y) if add_bias else 0.
-      tQ = out_Q + torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + cQ
+      out_Q = self.linear_Q(h)
+      if self.use_softmax:
+        logQ = torch.log(torch.softmax(out_Q, dim=1))
+        tQ = logQ[range(y.size(0)), y].view(y.size(0), 1) + cQ
+      else:
+        tQ = torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + out_Q + cQ
       if y_bar is not None:
         cQ_bar = self.embed_cQ(y_bar) if add_bias else 0.
-        tQ_bar = out_Q + torch.sum(self.embed_vQ(y_bar) * h, 1, keepdim=True) + cQ_bar
+        if self.use_softmax:
+          tQ_bar = logQ[range(y.size(0)), y_bar].view(y.size(0), 1) + cQ_bar
+        else:
+          tQ_bar = torch.sum(self.embed_vQ(y_bar) * h, 1, keepdim=True) + out_Q + cQ_bar
 
     return out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar
 
