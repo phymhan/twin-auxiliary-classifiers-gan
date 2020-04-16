@@ -77,7 +77,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       # If accumulating gradients, loop multiple times before an optimizer step
       for accumulation_index in range(config['num_D_accumulations']):
         half_size = config['batch_size']
-        pdb.set_trace()
         z_.sample_()
         y_.sample_()
         gy_bar = y_[torch.randperm(half_size), ...] if D.TQ or D.TP else None
