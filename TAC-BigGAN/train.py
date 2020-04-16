@@ -127,9 +127,10 @@ def run(config):
                              logstyle=config['logstyle'])
   # set tensorboard logger
   tb_logdir = '%s/tblogs' % config['logs_root']
-  for filename in os.listdir(tb_logdir):
-    if filename.startswith('events'):
-      os.remove(os.path.join(tb_logdir, filename))  # remove previous event logs
+  if os.path.exists(tb_logdir):
+    for filename in os.listdir(tb_logdir):
+      if filename.startswith('events'):
+        os.remove(os.path.join(tb_logdir, filename))  # remove previous event logs
   tb_writer = SummaryWriter(log_dir=tb_logdir)
   # Write metadata
   utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
