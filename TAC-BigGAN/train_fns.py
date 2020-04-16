@@ -71,11 +71,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     raise NotImplementedError
 
   def train(x, y):
+    # train one iteration
     G.optim.zero_grad()
     D.optim.zero_grad()
     # How many chunks to split x and y into?
     x = torch.split(x, config['batch_size'])
     y = torch.split(y, config['batch_size'])
+    half_size = config['batch_size']
     counter = 0
     MINE_weight = config['MINE_weight'] if config['weighted_MINE_loss'] else 1.0
     
@@ -86,8 +88,8 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       
     for step_index in range(config['num_D_steps']):
       # If accumulating gradients, loop multiple times before an optimizer step
+      D.optim.zero_grad()
       for accumulation_index in range(config['num_D_accumulations']):
-        half_size = config['batch_size']
         z_.sample_()
         y_.sample_()
         gy_bar = y_[torch.randperm(half_size), ...] if D.TQ or D.TP else None
@@ -148,49 +150,47 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     # Optionally toggle "requires_grad"
     utils.toggle_grad(D, False)
     utils.toggle_grad(G, True)
-      
+
     # Zero G's gradients by default before training G, for safety
     G.optim.zero_grad()
-    for step_index in range(config['num_G_steps']):
-      for accumulation_index in range(config['num_G_accumulations']):
-        half_size = config['batch_size']
-        z_.sample_()
-        y_.sample_()
-        gy_bar = y_[torch.randperm(half_size), ...] if D.TQ else None
-        D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
-                                                            train_G=True, split_D=config['split_D'],
-                                                            return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
-        C_loss = 0.
-        MI_loss = 0.
-        MI_Q_loss = 0.
-        f_div = 0.
-        if config['loss_type'] == 'fCGAN':
-          # f-div
-          f_div = (tQ - tP).mean()  # rev-kl
-        if config['loss_type'] == 'MINE':
-          # AC
-          C_loss += F.cross_entropy(c_cls, y_)
-          # MINE-Q
-          MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
-        if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
-          C_loss += F.cross_entropy(c_cls, y_)
-          if config['loss_type'] == 'Twin_AC':
-            MI_loss = F.cross_entropy(mi, y_)
+    for accumulation_index in range(config['num_G_accumulations']):
+      z_.sample_()
+      y_.sample_()
+      gy_bar = y_[torch.randperm(half_size), ...] if D.TQ else None
+      D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
+                                                          train_G=True, split_D=config['split_D'],
+                                                          return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
+      C_loss = 0.
+      MI_loss = 0.
+      MI_Q_loss = 0.
+      f_div = 0.
+      if config['loss_type'] == 'fCGAN':
+        # f-div
+        f_div = (tQ - tP).mean()  # rev-kl
+      if config['loss_type'] == 'MINE':
+        # AC
+        C_loss += F.cross_entropy(c_cls, y_)
+        # MINE-Q
+        MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
+      if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
+        C_loss += F.cross_entropy(c_cls, y_)
+        if config['loss_type'] == 'Twin_AC':
+          MI_loss = F.cross_entropy(mi, y_)
 
-        G_loss = generator_loss(D_fake) / float(config['num_G_accumulations'])
-        C_loss = C_loss / float(config['num_G_accumulations'])
-        MI_loss = MI_loss / float(config['num_G_accumulations'])
-        MI_Q_loss = MI_Q_loss / float(config['num_G_accumulations'])
-        f_div = f_div / float(config['num_G_accumulations'])
-        (G_loss + (C_loss - MI_loss)*config['AC_weight'] +
-         MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']).backward()
+      G_loss = generator_loss(D_fake) / float(config['num_G_accumulations'])
+      C_loss = C_loss / float(config['num_G_accumulations'])
+      MI_loss = MI_loss / float(config['num_G_accumulations'])
+      MI_Q_loss = MI_Q_loss / float(config['num_G_accumulations'])
+      f_div = f_div / float(config['num_G_accumulations'])
+      (G_loss + (C_loss - MI_loss)*config['AC_weight'] +
+       MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']).backward()
 
-        # Optionally apply modified ortho reg in G
-        if config['G_ortho'] > 0.0:
-          print('using modified ortho reg in G')  # Debug print to indicate we're using ortho reg in G
-          # Don't ortho reg shared, it makes no sense. Really we should blacklist any embeddings for this
-          utils.ortho(G, config['G_ortho'], blacklist=[param for param in G.shared.parameters()])
-        G.optim.step()
+    # Optionally apply modified ortho reg in G
+    if config['G_ortho'] > 0.0:
+      print('using modified ortho reg in G')  # Debug print to indicate we're using ortho reg in G
+      # Don't ortho reg shared, it makes no sense. Really we should blacklist any embeddings for this
+      utils.ortho(G, config['G_ortho'], blacklist=[param for param in G.shared.parameters()])
+    G.optim.step()
     
     # If we have an ema, update it, regardless of if we test with it or not
     if config['ema']:
@@ -276,7 +276,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
     user-specified), logs the results, and saves a best_ copy if it's an 
     improvement. '''
 def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
-         experiment_name, test_log):
+         experiment_name, test_log, tb_writer=None):
   print('Gathering inception metrics...')
   if config['accumulate_stats']:
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
@@ -298,3 +298,7 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   state_dict['best_FID'] = min(state_dict['best_FID'], FID)
   # Log results to file
   test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean), IS_std=float(IS_std), FID=float(FID))
+  if tb_writer is not None:
+    tb_writer.add_scalar('Test/IS_mean', float(IS_mean), int(state_dict['itr']))
+    tb_writer.add_scalar('Test/IS_std', float(IS_std), int(state_dict['itr']))
+    tb_writer.add_scalar('Test/FID', float(FID), int(state_dict['itr']))

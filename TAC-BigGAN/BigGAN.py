@@ -530,7 +530,7 @@ class G_D(nn.Module):
         if return_G_z:
           return D_fake, G_z, mi_f, c_cls_f, tP_f, tP_bar_f, tQ_f, tQ_bar_f
         else:
-          return D_fake, mi_f, c_cls_f, tP_f, tP_bar_f, tQ_f, tQ_bar_f
+          return D_fake,      mi_f, c_cls_f, tP_f, tP_bar_f, tQ_f, tQ_bar_f
     # If real data is provided, concatenate it with the Generator's output
     # along the batch dimension for improved efficiency.
     else:
@@ -545,4 +545,4 @@ class G_D(nn.Module):
         if return_G_z:
           return D_out, G_z, mi, cls, tP, tP_bar, tQ, tQ_bar
         else:
-          return D_out, mi, cls, tP, tP_bar, tQ, tQ_bar
+          return D_out,      mi, cls, tP, tP_bar, tQ, tQ_bar

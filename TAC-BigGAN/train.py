@@ -29,6 +29,7 @@ import utils
 import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
+from torch.utils.tensorboard import SummaryWriter
 
 from Resnet import multi_resolution_resnet, Resnet_mi
 
@@ -124,6 +125,12 @@ def run(config):
   train_log = utils.MyLogger(train_metrics_fname, 
                              reinitialize=(not config['resume']),
                              logstyle=config['logstyle'])
+  # set tensorboard logger
+  tb_logdir = '%s/tblogs' % config['logs_root']
+  for filename in os.listdir(tb_logdir):
+    if filename.startswith('events'):
+      os.remove(os.path.join(tb_logdir, filename))  # remove previous event logs
+  tb_writer = SummaryWriter(log_dir=tb_logdir)
   # Write metadata
   utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
   # Prepare data; the Discriminator's batch size is all that needs to be passed
@@ -183,6 +190,8 @@ def run(config):
         x, y = x.to(device), y.to(device)
       metrics = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics)
+      for metric_name in metrics:
+        tb_writer.add_scalar('Train/%s' % metric_name, metrics[metric_name], state_dict['itr'])
       
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
@@ -211,7 +220,7 @@ def run(config):
           print('Switchin G to eval mode...')
           G.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log)
+                       get_inception_metrics, experiment_name, test_log, tb_writer)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
@@ -222,6 +231,7 @@ def main():
   config = vars(parser.parse_args())
   print(config)
   run(config)
+
 
 if __name__ == '__main__':
   main()

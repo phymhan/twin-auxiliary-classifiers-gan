@@ -215,9 +215,6 @@ def prepare_parser():
         '--G_batch_size', type=int, default=0,
         help='Batch size to use for G; if 0, same as D (default: %(default)s)')
     parser.add_argument(
-        '--num_G_steps', type=int, default=2,
-        help='Number of D steps per G step (default: %(default)s)')
-    parser.add_argument(
         '--num_G_accumulations', type=int, default=1,
         help='Number of passes to accumulate G''s gradients over '
              '(default: %(default)s)')
