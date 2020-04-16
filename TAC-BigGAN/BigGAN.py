@@ -8,7 +8,7 @@ from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn import Parameter as P
-
+import pdb
 import layers
 from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 
@@ -456,19 +456,19 @@ class Discriminator(nn.Module):
     if self.TAC:
       out_mi = self.linear_mi(h)
     if self.TP:
-      psi_phi_x = self.linear_P(h)
+      out_P = self.linear_P(h)
       cP = self.embed_cP(y) if add_bias else 0.
-      tP = psi_phi_x + torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + cP
+      tP = out_P + torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + cP
       if y_bar is not None:
         cP_bar = self.embed_cP(y_bar) if add_bias else 0.
-        tP_bar = psi_phi_x + torch.sum(self.embed_vP(y_bar) * h, 1, keepdim=True) + cP_bar
+        tP_bar = out_P + torch.sum(self.embed_vP(y_bar) * h, 1, keepdim=True) + cP_bar
     if self.TQ:
-      psi_phi_x = self.linear_Q(h)
+      out_Q = self.linear_Q(h)
       cQ = self.embed_cQ(y) if add_bias else 0.
-      tQ = psi_phi_x + torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + cQ
+      tQ = out_Q + torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + cQ
       if y_bar is not None:
         cQ_bar = self.embed_cQ(y_bar) if add_bias else 0.
-        tQ_bar = psi_phi_x + torch.sum(self.embed_vQ(y_bar) * h, 1, keepdim=True) + cQ_bar
+        tQ_bar = out_Q + torch.sum(self.embed_vQ(y_bar) * h, 1, keepdim=True) + cQ_bar
 
     return out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar
 
@@ -513,6 +513,7 @@ class G_D(nn.Module):
     # If real data is provided, concatenate it with the Generator's output
     # along the batch dimension for improved efficiency.
     else:
+      pdb.set_trace()
       D_input = torch.cat([G_z, x], 0) if x is not None else G_z
       D_class = torch.cat([gy, dy], 0) if dy is not None else gy
       D_y_bar = torch.cat([gy_bar, dy_bar], 0) if dy_bar is not None else gy_bar

@@ -77,10 +77,11 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       # If accumulating gradients, loop multiple times before an optimizer step
       for accumulation_index in range(config['num_D_accumulations']):
         half_size = config['batch_size']
+        pdb.set_trace()
         z_.sample_()
         y_.sample_()
-        gy_bar = y_[torch.randperm(half_size), ...] if D.TQ else None
-        dy_bar = y[counter][torch.randperm(half_size), ...] if D.TP else None
+        gy_bar = y_[torch.randperm(half_size), ...] if D.TQ or D.TP else None
+        dy_bar = y[counter][torch.randperm(half_size), ...] if D.TP or D.TQ else None
         D_fake, D_real, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_[:config['batch_size']], y_[:config['batch_size']],
                                                                x[counter], y[counter], gy_bar, dy_bar,
                                                                train_G=False, split_D=config['split_D'], add_bias=True)
@@ -103,6 +104,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
           MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar) * etQ_bar.detach() / D.ma_etQ_bar
         if config['loss_type'] == 'MINE':
+          # AC
           C_loss += F.cross_entropy(c_cls[half_size:], y[counter])
           if config['train_AC_on_fake']:
             C_loss += F.cross_entropy(c_cls[:half_size], y_)
@@ -156,10 +158,12 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           # f-div
           f_div = (tQ - tP).mean()  # rev-kl
         if config['loss_type'] == 'MINE':
+          # AC
+          C_loss += F.cross_entropy(c_cls, y_)
           # MINE-Q
           MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
         if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
-          C_loss = F.cross_entropy(c_cls, y_)
+          C_loss += F.cross_entropy(c_cls, y_)
           if config['loss_type'] == 'Twin_AC':
             MI_loss = F.cross_entropy(mi, y_)
 
