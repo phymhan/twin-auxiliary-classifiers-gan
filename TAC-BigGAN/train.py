@@ -115,8 +115,7 @@ def run(config):
 
   # Prepare loggers for stats; metrics holds test metrics,
   # lmetrics holds any desired training metrics.
-  test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'],
-                                            experiment_name)
+  test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'], experiment_name)
   train_metrics_fname = '%s/%s' % (config['logs_root'], experiment_name)
   print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
   test_log = utils.MetricsLogger(test_metrics_fname, 
@@ -126,7 +125,7 @@ def run(config):
                              reinitialize=(not config['resume']),
                              logstyle=config['logstyle'])
   # set tensorboard logger
-  tb_logdir = '%s/tblogs' % config['logs_root']
+  tb_logdir = '%s/%s/tblogs' % (config['logs_root'], experiment_name)
   if os.path.exists(tb_logdir):
     for filename in os.listdir(tb_logdir):
       if filename.startswith('events'):
