@@ -149,6 +149,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
                                                             train_G=True, split_D=config['split_D'],
                                                             return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
+        print(tQ.size())
         C_loss = 0.
         MI_loss = 0.
         MI_Q_loss = 0.
@@ -184,14 +185,15 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     # If we have an ema, update it, regardless of if we test with it or not
     if config['ema']:
       ema.update(state_dict['itr'])
-    
+
     out = {'G_loss': float(G_loss.item()), 
            'D_loss_real': float(D_loss_real.item()),
            'D_loss_fake': float(D_loss_fake.item()),
-           'C_loss': C_loss,
-           'MI_loss': MI_loss,
-           'f_div': f_div,
-           'MI_Q': MI_Q}
+           'C_loss': utils.get_tensor_item(C_loss),
+           'MI_loss': utils.get_tensor_item(MI_loss),
+           'f_div': utils.get_tensor_item(f_div),
+           'MI_P': utils.get_tensor_item(MI_P),
+           'MI_Q': utils.get_tensor_item(MI_Q)}
     # Return G's loss and the components of D's loss.
     return out
   return train
@@ -201,7 +203,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     requested), and prepares sample sheets: one consisting of samples given
     a fixed noise seed (to show how the model evolves throughout training),
     a set of full conditional sample sheets, and a set of interp sheets. '''
-def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                     state_dict, config, experiment_name):
   utils.save_weights(G, D, state_dict, config['weights_root'],
                      experiment_name, None, G_ema if config['ema'] else None)
@@ -285,5 +287,4 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
   state_dict['best_FID'] = min(state_dict['best_FID'], FID)
   # Log results to file
-  test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
-               IS_std=float(IS_std), FID=float(FID))
+  test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean), IS_std=float(IS_std), FID=float(FID))

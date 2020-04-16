@@ -1186,6 +1186,9 @@ def accumulate_standing_stats(net, z, y, nclasses, num_accumulations=16):
     net.eval()
 
 
+def get_tensor_item(x):
+    return x if isinstance(x, float) else float(x.item())
+
 # This version of Adam keeps an fp32 copy of the parameters and
 # does all of the parameter updates in fp32, while still doing the
 # forwards and backwards passes using fp16 (i.e. fp16 copies of the
