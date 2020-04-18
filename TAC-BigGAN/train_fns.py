@@ -80,11 +80,12 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     half_size = config['batch_size']
     counter = 0
     MINE_weight = config['MINE_weight'] if config['weighted_MINE_loss'] else 1.0
+    EPSILON = config['magic_epsilon']
     
     # Optionally toggle D and G's "require_grad"
-
-    utils.toggle_grad(D, True)
-    utils.toggle_grad(G, False)
+    if config['toggle_grads']:
+      utils.toggle_grad(D, True)
+      utils.toggle_grad(G, False)
       
     for step_index in range(config['num_D_steps']):
       # If accumulating gradients, loop multiple times before an optimizer step
@@ -108,13 +109,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           if D.ma_etP_bar is None:
             D.ma_etP_bar = etP_bar.detach().item()
           D.ma_etP_bar += config['ma_rate'] * (etP_bar.detach().item() - D.ma_etP_bar)
-          MI_P = torch.mean(tP[half_size:]) - torch.log(etP_bar) * etP_bar.detach() / D.ma_etP_bar
+          MI_P = torch.mean(tP[half_size:]) - torch.log(etP_bar+EPSILON) * etP_bar.detach() / D.ma_etP_bar
           # MINE-Q on fake
           etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
           if D.ma_etQ_bar is None:
             D.ma_etQ_bar = etQ_bar.detach().item()
           D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
-          MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar) * etQ_bar.detach() / D.ma_etQ_bar
+          MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
         if config['loss_type'] == 'MINE':
           # AC
           C_loss += F.cross_entropy(c_cls[half_size:], y[counter])
@@ -125,7 +126,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           if D.ma_etQ_bar is None:
             D.ma_etQ_bar = etQ_bar.detach().item()
           D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
-          MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar) * etQ_bar.detach() / D.ma_etQ_bar
+          MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
         if config['loss_type'] == 'Twin_AC':
           C_loss += F.cross_entropy(c_cls[half_size:], y[counter]) + F.cross_entropy(mi[:half_size], y_)
           if config['train_AC_on_fake']:
@@ -148,8 +149,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       D.optim.step()
 
     # Optionally toggle "requires_grad"
-    utils.toggle_grad(D, False)
-    utils.toggle_grad(G, True)
+    if config['toggle_grads']:
+      utils.toggle_grad(D, False)
+      utils.toggle_grad(G, True)
 
     # Zero G's gradients by default before training G, for safety
     G.optim.zero_grad()
@@ -157,21 +159,21 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       z_.sample_()
       y_.sample_()
       gy_bar = y_[torch.randperm(half_size), ...] if D.TQ else None
-      D_fake, G_z, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
-                                                          train_G=True, split_D=config['split_D'],
-                                                          return_G_z=True, add_bias=config['loss_type'] != 'fCGAN')
+      D_fake, mi, c_cls, tP, tP_bar, tQ, tQ_bar = GD(z_, y_, gy_bar=gy_bar,
+                                                     train_G=True, split_D=config['split_D'],
+                                                     return_G_z=False, add_bias=config['loss_type'] != 'fCGAN')
       C_loss = 0.
       MI_loss = 0.
       MI_Q_loss = 0.
       f_div = 0.
       if config['loss_type'] == 'fCGAN':
         # f-div
-        f_div = (tQ - tP).mean()  # rev-kl
+        f_div += (tQ - tP).mean()  # rev-kl
       if config['loss_type'] == 'MINE':
         # AC
         C_loss += F.cross_entropy(c_cls, y_)
         # MINE-Q
-        MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar)))
+        MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar))+EPSILON)
       if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
         C_loss += F.cross_entropy(c_cls, y_)
         if config['loss_type'] == 'Twin_AC':

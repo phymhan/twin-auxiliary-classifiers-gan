@@ -466,7 +466,7 @@ class Discriminator(nn.Module):
       cP = self.embed_cP(y) if add_bias else 0.
       out_P = self.linear_P(h)
       if self.use_softmax:
-        logP = torch.log(torch.softmax(out_P, dim=1))
+        logP = torch.log_softmax(out_P, dim=1)
         tP = logP[range(y.size(0)), y].view(y.size(0), 1) + cP
       else:
         tP = torch.sum(self.embed_vP(y) * h, 1, keepdim=True) + out_P + cP
@@ -480,7 +480,7 @@ class Discriminator(nn.Module):
       cQ = self.embed_cQ(y) if add_bias else 0.
       out_Q = self.linear_Q(h)
       if self.use_softmax:
-        logQ = torch.log(torch.softmax(out_Q, dim=1))
+        logQ = torch.log_softmax(out_Q, dim=1)
         tQ = logQ[range(y.size(0)), y].view(y.size(0), 1) + cQ
       else:
         tQ = torch.sum(self.embed_vQ(y) * h, 1, keepdim=True) + out_Q + cQ

@@ -1,7 +1,7 @@
 #!/bin/bash
 export HDF5_USE_FILE_LOCKING='FALSE'
 python train.py \
---dataset I128_hdf5 --parallel --shuffle  --num_workers 16 --batch_size 256 --load_in_mem  \
+--dataset I128_hdf5 --parallel --shuffle  --num_workers 8 --batch_size 256 --load_in_mem  \
 --loss_type Twin_AC --AC --TAC \
 --num_G_accumulations 8 --num_D_accumulations 8 \
 --num_D_steps 1 --G_lr 1e-4 --D_lr 4e-4 --D_B2 0.999 --G_B2 0.999 \

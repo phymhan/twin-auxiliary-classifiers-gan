@@ -209,7 +209,7 @@ def prepare_parser():
 
     ### Batch size, parallel, and precision stuff ###
     parser.add_argument(
-        '--batch_size', type=int, default=50,
+        '--batch_size', type=int, default=64,
         help='Default overall batchsize (default: %(default)s)')
     parser.add_argument(
         '--G_batch_size', type=int, default=0,
@@ -217,13 +217,6 @@ def prepare_parser():
     parser.add_argument(
         '--num_G_accumulations', type=int, default=1,
         help='Number of passes to accumulate G''s gradients over '
-             '(default: %(default)s)')
-    parser.add_argument(
-        '--num_MI_steps', type=int, default=2,
-        help='Number of D steps per G step (default: %(default)s)')
-    parser.add_argument(
-        '--num_MI_accumulations', type=int, default=1,
-        help='Number of passes to accumulate D''s gradients over '
              '(default: %(default)s)')
     parser.add_argument(
         '--num_D_steps', type=int, default=2,
@@ -262,6 +255,9 @@ def prepare_parser():
         '--num_standing_accumulations', type=int, default=16,
         help='Number of forward passes to use in accumulating standing stats? '
              '(default: %(default)s)')
+    parser.add_argument(
+        '--magic_epsilon', type=float, default=1e-8,
+        help='A small number to help numerical stability (like in torch.log) (default: %(default)s)')
 
     ### Bookkeping stuff ###
     parser.add_argument(
