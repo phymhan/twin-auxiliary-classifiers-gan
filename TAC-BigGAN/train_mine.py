@@ -143,6 +143,7 @@ def run(config):
             else:
                 x, y = x.to(device), y.to(device)
             metrics = train(x, y)
+            print(metrics)
             train_log.log(itr=int(state_dict['itr']), **metrics)
             for metric_name in metrics:
                 tb_writer.add_scalar('Train/%s' % metric_name, metrics[metric_name], state_dict['itr'])

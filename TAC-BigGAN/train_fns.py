@@ -246,7 +246,6 @@ def MINE_training_function(D, ema, state_dict, config):
             ema.update(state_dict['itr'])
 
         out = {'MI': utils.get_tensor_item(MI_P)}
-        # Return G's loss and the components of D's loss.
         return out
 
     return train
