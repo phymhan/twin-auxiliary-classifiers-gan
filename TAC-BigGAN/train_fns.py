@@ -216,7 +216,8 @@ def MINE_training_function(D, ema, state_dict, config):
         EPSILON = config['magic_epsilon']
 
         # If accumulating gradients, loop multiple times before an optimizer step
-        D.optim.zero_grad()
+        optim = D.module.optim if isinstance(D, nn.DataParallel) else D.optim
+        optim.zero_grad()
 
         tP_mean = 0.
         etP_bar_mean = 0.
@@ -239,7 +240,7 @@ def MINE_training_function(D, ema, state_dict, config):
             print('using modified ortho reg in D')
             utils.ortho(D, config['D_ortho'])
 
-        D.optim.step()
+        optim.step()
 
         # If we have an ema, update it, regardless of if we test with it or not
         if config['ema']:
