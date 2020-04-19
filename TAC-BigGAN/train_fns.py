@@ -247,10 +247,6 @@ def MINE_training_function(D, ema, state_dict, config):
 
         optim.step()
 
-        # If we have an ema, update it, regardless of if we test with it or not
-        if config['ema']:
-            ema.update(state_dict['itr'])
-
         out = {'MI': utils.get_tensor_item(MI_P)}
         return out
 

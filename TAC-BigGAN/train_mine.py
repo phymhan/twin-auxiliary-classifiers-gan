@@ -69,8 +69,6 @@ def run(config):
 
     # Next, build the model
     D = model.Discriminator(**config).to(device)
-
-    ema = None
     
     # FP16?
     if config['D_fp16']:
@@ -118,7 +116,7 @@ def run(config):
 
     # Loaders are loaded, prepare the training function
     if config['which_train_fn'] == 'MINE':
-        train = train_fns.MINE_training_function(D, ema, state_dict, config)
+        train = train_fns.MINE_training_function(D, state_dict, config)
     # Else, assume debugging and use the dummy train fn
     else:
         train = train_fns.dummy_training_function()
