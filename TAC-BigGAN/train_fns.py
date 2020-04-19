@@ -222,7 +222,7 @@ def MINE_training_function(D, ema, state_dict, config):
         etP_bar_mean = 0.
         for accumulation_index in range(config['num_D_accumulations']):
             y_bar = y[counter][torch.randperm(batch_size), ...]
-            out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar = D(x, y[counter], y_bar, add_bias=True)
+            out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar = D(x[counter], y[counter], y_bar, add_bias=True)
             tP_mean += torch.mean(tP) / float(config['num_D_accumulations'])
             etP_bar_mean += torch.mean(torch.exp(tP_bar)) / float(config['num_D_accumulations'])
             counter += 1
