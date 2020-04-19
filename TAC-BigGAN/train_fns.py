@@ -205,7 +205,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     return train
 
 
-def MINE_training_function(D, ema, state_dict, config):
+def MINE_training_function(D, state_dict, config):
     def train(x, y):
         # train one iteration
         # How many chunks to split x and y into?
