@@ -241,10 +241,10 @@ def test_acc(model, test_loader):
             #     plt.figure(1)
             #     plt.imshow(np.transpose((data[target == 1][0].cpu().numpy() + 1) / 2, [1, 2, 0]))
             #     plt.show()
-            _,output = model(data)
+            _, output = model(data)
             # test_loss += F.nll_loss(output, target).sum().item() # sum up batch loss
-            pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
-            c= 800
+            pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
+            c = 800
             if torch.sum(pred == c) >= 1:
                 for j in range(torch.sum(pred == c)):
                     plt.figure(1)
@@ -263,9 +263,9 @@ def test_acc(model, test_loader):
     return correct / len(test_loader.dataset)*1.0
 
 
-def test_ac(g,c):
-    toggle_grad(g,False)
-    toggle_grad(c,False)
+def test_ac(g, c):
+    toggle_grad(g, False)
+    toggle_grad(c, False)
 
     noise, fake_label = prepare_z_y(G_batch_size=100, dim_z=128, nclasses=2)
 
@@ -276,14 +276,14 @@ def test_ac(g,c):
     for _ in range(100):
         noise.sample_()
         fake_label.sample_()
-        fake_img = g(noise,fake_label)
+        fake_img = g(noise, fake_label)
         cls = c(fake_img)
         pred = cls.max(1, keepdim=True)[1]
-        num_0 += torch.sum(pred==0).float()
-        num_1 += torch.sum(pred==1).float()
+        num_0 += torch.sum(pred == 0).float()
+        num_1 += torch.sum(pred == 1).float()
         num_2 += torch.sum(pred == 2).float()
 
-    print(float(num_0/10000.0),float(num_1/10000.0),float(num_2/10000.0))
+    print(float(num_0/10000.0), float(num_1/10000.0), float(num_2/10000.0))
 
 
 

@@ -18,36 +18,36 @@ from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 # block at both resolution 32x32 and 64x64. Just '64' will apply at 64x64.
 def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
     arch = {}
-    arch[512] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2, 1]],
-                 'out_channels' : [ch * item for item in [16,  8, 8, 4, 2, 1, 1]],
-                 'upsample' : [True] * 7,
-                 'resolution' : [8, 16, 32, 64, 128, 256, 512],
-                 'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
-                                                            for i in range(3,10)}}
-    arch[256] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2]],
-                 'out_channels' : [ch * item for item in [16,  8, 8, 4, 2, 1]],
-                 'upsample' : [True] * 6,
-                 'resolution' : [8, 16, 32, 64, 128, 256],
-                 'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
-                                                            for i in range(3,9)}}
-    arch[128] = {'in_channels' :  [ch * item for item in [16, 16, 8, 4, 2]],
-                 'out_channels' : [ch * item for item in [16, 8, 4, 2, 1]],
-                 'upsample' : [True] * 5,
-                 'resolution' : [8, 16, 32, 64, 128],
-                 'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
-                                                            for i in range(3,8)}}
-    arch[64]  = {'in_channels' :  [ch * item for item in [16, 16, 8, 4]],
-                 'out_channels' : [ch * item for item in [16, 8, 4, 2]],
-                 'upsample' : [True] * 4,
-                 'resolution' : [8, 16, 32, 64],
-                 'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
-                                                            for i in range(3,7)}}
-    arch[32]  = {'in_channels' :  [ch * item for item in [4, 4, 4]],
-                 'out_channels' : [ch * item for item in [4, 4, 4]],
-                 'upsample' : [True] * 3,
-                 'resolution' : [8, 16, 32],
-                 'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
-                                                            for i in range(3,6)}}
+    arch[512] = {'in_channels':  [ch * item for item in [16, 16, 8, 8, 4, 2, 1]],
+                 'out_channels': [ch * item for item in [16,  8, 8, 4, 2, 1, 1]],
+                 'upsample': [True] * 7,
+                 'resolution': [8, 16, 32, 64, 128, 256, 512],
+                 'attention': {2**i: (2**i in [int(item) for item in attention.split('_')])
+                               for i in range(3, 10)}}
+    arch[256] = {'in_channels':  [ch * item for item in [16, 16, 8, 8, 4, 2]],
+                 'out_channels': [ch * item for item in [16,  8, 8, 4, 2, 1]],
+                 'upsample': [True] * 6,
+                 'resolution': [8, 16, 32, 64, 128, 256],
+                 'attention': {2**i: (2**i in [int(item) for item in attention.split('_')])
+                               for i in range(3, 9)}}
+    arch[128] = {'in_channels':  [ch * item for item in [16, 16, 8, 4, 2]],
+                 'out_channels': [ch * item for item in [16, 8, 4, 2, 1]],
+                 'upsample': [True] * 5,
+                 'resolution': [8, 16, 32, 64, 128],
+                 'attention': {2**i: (2**i in [int(item) for item in attention.split('_')])
+                               for i in range(3, 8)}}
+    arch[64]  = {'in_channels':  [ch * item for item in [16, 16, 8, 4]],
+                 'out_channels': [ch * item for item in [16, 8, 4, 2]],
+                 'upsample': [True] * 4,
+                 'resolution': [8, 16, 32, 64],
+                 'attention': {2**i: (2**i in [int(item) for item in attention.split('_')])
+                               for i in range(3, 7)}}
+    arch[32]  = {'in_channels':  [ch * item for item in [4, 4, 4]],
+                 'out_channels': [ch * item for item in [4, 4, 4]],
+                 'upsample': [True] * 3,
+                 'resolution': [8, 16, 32],
+                 'attention': {2**i: (2**i in [int(item) for item in attention.split('_')])
+                               for i in range(3, 6)}}
 
     return arch
 
@@ -62,12 +62,10 @@ class Generator(nn.Module):
                  G_lr=5e-5, G_B1=0.0, G_B2=0.999, adam_eps=1e-8,
                  BN_eps=1e-5, SN_eps=1e-12, G_mixed_precision=False, G_fp16=False,
                  G_init='ortho', skip_init=False, no_optim=False,
-                 G_param='SN', norm_style='bn',
-                 **kwargs):
+                 G_param='SN', norm_style='bn', **kwargs):
         super(Generator, self).__init__()
         saved_args = locals()
         print("Generator saved_args is", saved_args)
-
 
         # Channel width mulitplier
         self.ch = G_ch
@@ -128,8 +126,8 @@ class Generator(nn.Module):
                                                 num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
                                                 eps=self.SN_eps)
             self.which_linear = functools.partial(layers.SNLinear,
-                                                num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
-                                                eps=self.SN_eps)
+                                                  num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
+                                                  eps=self.SN_eps)
         else:
             self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
             self.which_linear = nn.Linear
@@ -165,7 +163,7 @@ class Generator(nn.Module):
                                            which_bn=self.which_bn,
                                            activation=self.activation,
                                            upsample=(functools.partial(F.interpolate, scale_factor=2)
-                                                   if self.arch['upsample'][index] else None))]]
+                                                     if self.arch['upsample'][index] else None))]]
 
             # If attention on this block, attach it to the end
             if self.arch['attention'][self.arch['resolution'][index]]:
@@ -254,32 +252,32 @@ class Generator(nn.Module):
 
 
 # Discriminator architecture, same paradigm as G's above
-def D_arch(ch=64, attention='64',ksize='333333', dilation='111111'):
+def D_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
     arch = {}
-    arch[256] = {'in_channels' :  [3] + [ch*item for item in [1, 2, 4, 8, 8, 16]],
-                 'out_channels' : [item * ch for item in [1, 2, 4, 8, 8, 16, 16]],
-                 'downsample' : [True] * 6 + [False],
-                 'resolution' : [128, 64, 32, 16, 8, 4, 4 ],
-                 'attention' : {2**i: 2**i in [int(item) for item in attention.split('_')]
-                                for i in range(2,8)}}
-    arch[128] = {'in_channels' :  [3] + [ch*item for item in [1, 2, 4, 8, 16]],
-                 'out_channels' : [item * ch for item in [1, 2, 4, 8, 16, 16]],
-                 'downsample' : [True] * 5 + [False],
-                 'resolution' : [64, 32, 16, 8, 4, 4],
-                 'attention' : {2**i: 2**i in [int(item) for item in attention.split('_')]
-                                for i in range(2,8)}}
-    arch[64]  = {'in_channels' :  [3] + [ch*item for item in [1, 2, 4, 8]],
-                 'out_channels' : [item * ch for item in [1, 2, 4, 8, 16]],
-                 'downsample' : [True] * 4 + [False],
-                 'resolution' : [32, 16, 8, 4, 4],
-                 'attention' : {2**i: 2**i in [int(item) for item in attention.split('_')]
-                                for i in range(2,7)}}
-    arch[32]  = {'in_channels' :  [3] + [item * ch for item in [4, 4, 4]],
-                 'out_channels' : [item * ch for item in [4, 4, 4, 4]],
-                 'downsample' : [True, True, False, False],
-                 'resolution' : [16, 16, 16, 16],
-                 'attention' : {2**i: 2**i in [int(item) for item in attention.split('_')]
-                                for i in range(2,6)}}
+    arch[256] = {'in_channels':  [3] + [ch*item for item in [1, 2, 4, 8, 8, 16]],
+                 'out_channels': [item * ch for item in [1, 2, 4, 8, 8, 16, 16]],
+                 'downsample': [True] * 6 + [False],
+                 'resolution': [128, 64, 32, 16, 8, 4, 4],
+                 'attention': {2**i: 2**i in [int(item) for item in attention.split('_')]
+                               for i in range(2, 8)}}
+    arch[128] = {'in_channels':  [3] + [ch*item for item in [1, 2, 4, 8, 16]],
+                 'out_channels': [item * ch for item in [1, 2, 4, 8, 16, 16]],
+                 'downsample': [True] * 5 + [False],
+                 'resolution': [64, 32, 16, 8, 4, 4],
+                 'attention': {2**i: 2**i in [int(item) for item in attention.split('_')]
+                               for i in range(2, 8)}}
+    arch[64]  = {'in_channels':  [3] + [ch*item for item in [1, 2, 4, 8]],
+                 'out_channels': [item * ch for item in [1, 2, 4, 8, 16]],
+                 'downsample': [True] * 4 + [False],
+                 'resolution': [32, 16, 8, 4, 4],
+                 'attention': {2**i: 2**i in [int(item) for item in attention.split('_')]
+                               for i in range(2, 7)}}
+    arch[32]  = {'in_channels':  [3] + [item * ch for item in [4, 4, 4]],
+                 'out_channels': [item * ch for item in [4, 4, 4, 4]],
+                 'downsample': [True, True, False, False],
+                 'resolution': [16, 16, 16, 16],
+                 'attention': {2**i: 2**i in [int(item) for item in attention.split('_')]
+                               for i in range(2, 6)}}
     return arch
 
 
@@ -420,7 +418,7 @@ class Discriminator(nn.Module):
     def init_weights(self):
         self.param_count = 0
         for module in self.modules():
-            if (isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding)):
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
                 if self.init == 'ortho':
                     init.orthogonal_(module.weight)
                 elif self.init == 'N02':

@@ -205,6 +205,53 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     return train
 
 
+def MINE_training_function(D, ema, state_dict, config):
+    def train(x, y):
+        # train one iteration
+        # How many chunks to split x and y into?
+        x = torch.split(x, config['batch_size'])
+        y = torch.split(y, config['batch_size'])
+        batch_size = config['batch_size']
+        counter = 0
+        EPSILON = config['magic_epsilon']
+
+        # If accumulating gradients, loop multiple times before an optimizer step
+        D.optim.zero_grad()
+
+        tP_mean = 0.
+        etP_bar_mean = 0.
+        for accumulation_index in range(config['num_D_accumulations']):
+            y_bar = y[counter][torch.randperm(batch_size), ...]
+            out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar = D(x, y[counter], y_bar, add_bias=True)
+            tP_mean += torch.mean(tP) / float(config['num_D_accumulations'])
+            etP_bar_mean += torch.mean(torch.exp(tP_bar)) / float(config['num_D_accumulations'])
+            counter += 1
+
+        if D.ma_etP_bar is None:
+            D.ma_etP_bar = etP_bar_mean.detach().item()
+        D.ma_etP_bar += config['ma_rate'] * (etP_bar_mean.detach().item() - D.ma_etP_bar)
+        MI_P = tP_mean - torch.log(etP_bar_mean + EPSILON) * etP_bar_mean.detach() / D.ma_etP_bar
+        (-MI_P).backward()
+
+        # Optionally apply ortho reg in D
+        if config['D_ortho'] > 0.0:
+            # Debug print to indicate we're using ortho reg in D.
+            print('using modified ortho reg in D')
+            utils.ortho(D, config['D_ortho'])
+
+        D.optim.step()
+
+        # If we have an ema, update it, regardless of if we test with it or not
+        if config['ema']:
+            ema.update(state_dict['itr'])
+
+        out = {'MI': utils.get_tensor_item(MI_P)}
+        # Return G's loss and the components of D's loss.
+        return out
+
+    return train
+
+
 ''' This function takes in the model, saves the weights (multiple copies if 
         requested), and prepares sample sheets: one consisting of samples given
         a fixed noise seed (to show how the model evolves throughout training),
