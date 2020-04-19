@@ -232,12 +232,12 @@ def MINE_training_function(D, ema, state_dict, config):
         if ma_etP_bar is None:
             ma_etP_bar = etP_bar_mean.detach().item()
         ma_etP_bar += config['ma_rate'] * (etP_bar_mean.detach().item() - ma_etP_bar)
+        MI_P = tP_mean - torch.log(etP_bar_mean + EPSILON) * etP_bar_mean.detach() / ma_etP_bar
+        (-MI_P).backward()
         if isinstance(D, nn.DataParallel):
             D.module.ma_etP_bar = ma_etP_bar
         else:
             D.ma_etP_bar = ma_etP_bar
-        MI_P = tP_mean - torch.log(etP_bar_mean + EPSILON) * etP_bar_mean.detach() / D.ma_etP_bar
-        (-MI_P).backward()
 
         # Optionally apply ortho reg in D
         if config['D_ortho'] > 0.0:
