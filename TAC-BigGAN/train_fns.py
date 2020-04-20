@@ -220,24 +220,18 @@ def MINE_training_function(D, state_dict, config):
         optim.zero_grad()
 
         tP_mean = 0.
-        etP_bar_mean = 0.
+        tP_bar_list = []
         for accumulation_index in range(config['num_D_accumulations']):
             y_bar = y[counter][torch.randperm(batch_size), ...]
             out, out_mi, out_c, tP, tP_bar, tQ, tQ_bar = D(x[counter], y[counter], y_bar, add_bias=True)
             tP_mean += torch.mean(tP) / float(config['num_D_accumulations'])
-            etP_bar_mean += torch.mean(torch.exp(tP_bar)) / float(config['num_D_accumulations'])
+            tP_bar_list.append(tP_bar)
             counter += 1
-
-        ma_etP_bar = D.module.ma_etP_bar if isinstance(D, nn.DataParallel) else D.ma_etP_bar
-        if ma_etP_bar is None:
-            ma_etP_bar = etP_bar_mean.detach().item()
-        ma_etP_bar += config['ma_rate'] * (etP_bar_mean.detach().item() - ma_etP_bar)
-        MI_P = tP_mean - torch.log(etP_bar_mean + EPSILON) * etP_bar_mean.detach() / ma_etP_bar
+        tP_bar = torch.cat(tP_bar_list)
+        tP_bar_max = tP_bar.max()
+        log_mean_etP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max)))
+        MI_P = tP_mean - log_mean_etP_bar
         (-MI_P).backward()
-        if isinstance(D, nn.DataParallel):
-            D.module.ma_etP_bar = ma_etP_bar
-        else:
-            D.ma_etP_bar = ma_etP_bar
 
         # Optionally apply ortho reg in D
         if config['D_ortho'] > 0.0:
