@@ -124,10 +124,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                             tQ_bar_.append(tQ_bar[:half_size])
                         else:
                             tP_bar_max = tP_bar[half_size:].max().detach()
-                            log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar[half_size:] - tP_bar_max)))
+                            log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar[half_size:] - tP_bar_max))+EPSILON)
                             MI_P = torch.mean(tP[half_size:]) - log_sum_exp_tP_bar
                             tQ_bar_max = tQ_bar[:half_size].max().detach()
-                            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
+                            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max))+EPSILON)
                             MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
                 if config['loss_type'] == 'MINE':
                     # AC
@@ -147,7 +147,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                             tQ_bar_.append(tQ_bar[:half_size])
                         else:
                             tQ_bar_max = tQ_bar[:half_size].max().detach()
-                            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
+                            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max))+EPSILON)
                             MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
                 if config['loss_type'] == 'Twin_AC':
                     C_loss += F.cross_entropy(c_cls[half_size:], y[counter]) + F.cross_entropy(mi[:half_size], y_)
@@ -168,13 +168,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                     # MINE-P
                     tP_bar = torch.cat(tP_bar_)
                     tP_bar_max = tP_bar.max().detach()
-                    log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max)))
+                    log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max))+EPSILON)
                     MI_P = tP_mean - log_sum_exp_tP_bar
                 if config['loss_type'] == 'fCGAN' or config['loss_type'] == 'MINE':
                     # MINE-Q
                     tQ_bar = torch.cat(tQ_bar_)
                     tQ_bar_max = tQ_bar.max().detach()
-                    log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+                    log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max))+EPSILON)
                     MI_Q = tQ_mean - log_sum_exp_tQ_bar
                     # backward
                     (-(MI_P + MI_Q) * MINE_weight).backward()
@@ -220,7 +220,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                     tQ_bar_.append(tQ_bar)
                 else:
                     tQ_bar_max = tQ_bar.max().detach()
-                    log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+                    log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max))+EPSILON)
                     MI_Q_loss = torch.mean(tQ) - log_sum_exp_tQ_bar
             if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
                 C_loss += F.cross_entropy(c_cls, y_)
@@ -239,7 +239,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         if config['accumulate_mine_grad'] and config['loss_type'] == 'MINE':
             tQ_bar = torch.cat(tQ_bar_)
             tQ_bar_max = tQ_bar.max().detach()
-            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max))+EPSILON)
             MI_Q_loss = tQ_mean - log_sum_exp_tQ_bar
             # backward
             (MI_Q_loss * config['MINE_weight']).backward()
@@ -292,7 +292,7 @@ def MINE_training_function(D, state_dict, config):
             counter += 1
         tP_bar = torch.cat(tP_bar_list)
         tP_bar_max = tP_bar.max().detach()
-        log_mean_etP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max)))
+        log_mean_etP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max))+EPSILON)
         MI_P = tP_mean - log_mean_etP_bar
         (-MI_P).backward()
 
