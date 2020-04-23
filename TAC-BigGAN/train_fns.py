@@ -98,29 +98,42 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                 MI_P = 0.
                 MI_Q = 0.
                 if config['loss_type'] == 'fCGAN':
-                    # MINE-P on real
-                    etP_bar = torch.mean(torch.exp(tP_bar[half_size:]))
-                    if D.ma_etP_bar is None:
-                        D.ma_etP_bar = etP_bar.detach().item()
-                    D.ma_etP_bar += config['ma_rate'] * (etP_bar.detach().item() - D.ma_etP_bar)
-                    MI_P = torch.mean(tP[half_size:]) - torch.log(etP_bar+EPSILON) * etP_bar.detach() / D.ma_etP_bar
-                    # MINE-Q on fake
-                    etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
-                    if D.ma_etQ_bar is None:
-                        D.ma_etQ_bar = etQ_bar.detach().item()
-                    D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
-                    MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
+                    if config['use_ma_trick']:
+                        # MINE-P on real
+                        etP_bar = torch.mean(torch.exp(tP_bar[half_size:]))
+                        if D.ma_etP_bar is None:
+                            D.ma_etP_bar = etP_bar.detach().item()
+                        D.ma_etP_bar += config['ma_rate'] * (etP_bar.detach().item() - D.ma_etP_bar)
+                        MI_P = torch.mean(tP[half_size:]) - torch.log(etP_bar+EPSILON) * etP_bar.detach() / D.ma_etP_bar
+                        # MINE-Q on fake
+                        etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
+                        if D.ma_etQ_bar is None:
+                            D.ma_etQ_bar = etQ_bar.detach().item()
+                        D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
+                        MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
+                    else:
+                        tP_bar_max = tP_bar[half_size:].max().detach()
+                        log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar[half_size:] - tP_bar_max)))
+                        MI_P = torch.mean(tP[half_size:]) - log_sum_exp_tP_bar
+                        tQ_bar_max = tQ_bar[:half_size].max().detach()
+                        log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
+                        MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
                 if config['loss_type'] == 'MINE':
                     # AC
                     C_loss += F.cross_entropy(c_cls[half_size:], y[counter])
                     if config['train_AC_on_fake']:
                         C_loss += F.cross_entropy(c_cls[:half_size], y_)
                     # MINE-Q on fake
-                    etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
-                    if D.ma_etQ_bar is None:
-                        D.ma_etQ_bar = etQ_bar.detach().item()
-                    D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
-                    MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
+                    if config['use_ma_trick']:
+                        etQ_bar = torch.mean(torch.exp(tQ_bar[:half_size]))
+                        if D.ma_etQ_bar is None:
+                            D.ma_etQ_bar = etQ_bar.detach().item()
+                        D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
+                        MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
+                    else:
+                        tQ_bar_max = tQ_bar[:half_size].max().detach()
+                        log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
+                        MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
                 if config['loss_type'] == 'Twin_AC':
                     C_loss += F.cross_entropy(c_cls[half_size:], y[counter]) + F.cross_entropy(mi[:half_size], y_)
                     if config['train_AC_on_fake']:
@@ -167,7 +180,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                 # AC
                 C_loss += F.cross_entropy(c_cls, y_)
                 # MINE-Q
-                MI_Q_loss = torch.mean(tQ) - torch.log(torch.mean(torch.exp(tQ_bar))+EPSILON)
+                tQ_bar_max = tQ_bar.max().detach()
+                log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+                MI_Q_loss = torch.mean(tQ) - log_sum_exp_tQ_bar
             if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
                 C_loss += F.cross_entropy(c_cls, y_)
                 if config['loss_type'] == 'Twin_AC':
@@ -228,7 +243,7 @@ def MINE_training_function(D, state_dict, config):
             tP_bar_list.append(tP_bar)
             counter += 1
         tP_bar = torch.cat(tP_bar_list)
-        tP_bar_max = tP_bar.max()
+        tP_bar_max = tP_bar.max().detach()
         log_mean_etP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max)))
         MI_P = tP_mean - log_mean_etP_bar
         (-MI_P).backward()

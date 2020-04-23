@@ -114,7 +114,7 @@ class Generator(nn.Module):
             self.num_slots = len(self.arch['in_channels']) + 1
             self.z_chunk_size = (self.dim_z // self.num_slots)
             # Recalculate latent dimensionality for even splitting into chunks
-            self.dim_z = self.z_chunk_size *  self.num_slots
+            self.dim_z = self.z_chunk_size * self.num_slots
         else:
             self.num_slots = 1
             self.z_chunk_size = 0
