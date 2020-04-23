@@ -159,7 +159,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                         C_loss += F.cross_entropy(c_cls[:half_size], y_)
                 D_loss = (D_loss_real + D_loss_fake + C_loss*config['AC_weight'] - (MI_P + MI_Q)*MINE_weight
                           ) / float(config['num_D_accumulations'])
-                D_loss.backward()
+                if config['accumulate_mine_grad'] and (config['loss_type'] == 'fCGAN' or config['loss_type'] == 'MINE'):
+                    D_loss.backward(create_graph=True)  # TODO: this is not efficient
+                else:
+                    D_loss.backward()
                 counter += 1
 
             # compute accumulated MINE loss once
@@ -232,8 +235,12 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
             MI_loss = MI_loss / float(config['num_G_accumulations'])
             MI_Q_loss = MI_Q_loss / float(config['num_G_accumulations'])
             f_div = f_div / float(config['num_G_accumulations'])
-            (G_loss + (C_loss - MI_loss)*config['AC_weight'] +
-             MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']).backward()
+            G_loss_full = G_loss + (C_loss - MI_loss) * config['AC_weight'] + \
+                          MI_Q_loss * config['MINE_weight'] + f_div * config['fCGAN_weight']
+            if config['accumulate_mine_grad'] and config['loss_type'] == 'MINE':
+                G_loss_full.backward(create_graph=True)  # TODO: this is not efficient
+            else:
+                G_loss_full.backward()
 
         # compute accumulated MINE loss once
         if config['accumulate_mine_grad'] and config['loss_type'] == 'MINE':
