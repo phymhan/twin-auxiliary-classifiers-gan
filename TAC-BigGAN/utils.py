@@ -69,6 +69,9 @@ def prepare_parser():
         '--use_ma_trick', action='store_true', default=False,
         help='Train MINE using moving average (ma) trick? (default: %(default)s)')
     parser.add_argument(
+        '--accumulate_mine_grad', action='store_true', default=False,
+        help='Accumulate gradient of MINE? (default: %(default)s)')
+    parser.add_argument(
         '--GAN_loss', type=str, default='hinge',
         help='GAN loss ([hinge | dcgan | vanilla | wgangp] default: %(default)s)')
     parser.add_argument(

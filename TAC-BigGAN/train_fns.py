@@ -84,6 +84,11 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         for step_index in range(config['num_D_steps']):
             # If accumulating gradients, loop multiple times before an optimizer step
             D.optim.zero_grad()
+            if config['accumulate_mine_grad']:
+                tP_mean = 0.
+                tQ_mean = 0.
+                tP_bar_ = []
+                tQ_bar_ = []
             for accumulation_index in range(config['num_D_accumulations']):
                 z_.sample_()
                 y_.sample_()
@@ -112,12 +117,18 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                         D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
                         MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
                     else:
-                        tP_bar_max = tP_bar[half_size:].max().detach()
-                        log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar[half_size:] - tP_bar_max)))
-                        MI_P = torch.mean(tP[half_size:]) - log_sum_exp_tP_bar
-                        tQ_bar_max = tQ_bar[:half_size].max().detach()
-                        log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
-                        MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
+                        if config['accumulate_mine_grad']:
+                            tP_mean += torch.mean(tP[half_size:]) / float(config['num_D_accumulations'])
+                            tQ_mean += torch.mean(tQ[:half_size]) / float(config['num_D_accumulations'])
+                            tP_bar_.append(tP_bar[half_size:])
+                            tQ_bar_.append(tQ_bar[:half_size])
+                        else:
+                            tP_bar_max = tP_bar[half_size:].max().detach()
+                            log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar[half_size:] - tP_bar_max)))
+                            MI_P = torch.mean(tP[half_size:]) - log_sum_exp_tP_bar
+                            tQ_bar_max = tQ_bar[:half_size].max().detach()
+                            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
+                            MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
                 if config['loss_type'] == 'MINE':
                     # AC
                     C_loss += F.cross_entropy(c_cls[half_size:], y[counter])
@@ -131,9 +142,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                         D.ma_etQ_bar += config['ma_rate'] * (etQ_bar.detach().item() - D.ma_etQ_bar)
                         MI_Q = torch.mean(tQ[:half_size]) - torch.log(etQ_bar+EPSILON) * etQ_bar.detach() / D.ma_etQ_bar
                     else:
-                        tQ_bar_max = tQ_bar[:half_size].max().detach()
-                        log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
-                        MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
+                        if config['accumulate_mine_grad']:
+                            tQ_mean += torch.mean(tQ[:half_size]) / float(config['num_D_accumulations'])
+                            tQ_bar_.append(tQ_bar[:half_size])
+                        else:
+                            tQ_bar_max = tQ_bar[:half_size].max().detach()
+                            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar[:half_size] - tQ_bar_max)))
+                            MI_Q = torch.mean(tQ[:half_size]) - log_sum_exp_tQ_bar
                 if config['loss_type'] == 'Twin_AC':
                     C_loss += F.cross_entropy(c_cls[half_size:], y[counter]) + F.cross_entropy(mi[:half_size], y_)
                     if config['train_AC_on_fake']:
@@ -146,7 +161,24 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                           ) / float(config['num_D_accumulations'])
                 D_loss.backward()
                 counter += 1
-                
+
+            # compute accumulated MINE loss once
+            if config['accumulate_mine_grad']:
+                if config['loss_type'] == 'fCGAN':
+                    # MINE-P
+                    tP_bar = torch.cat(tP_bar_)
+                    tP_bar_max = tP_bar.max().detach()
+                    log_sum_exp_tP_bar = tP_bar_max + torch.log(torch.mean(torch.exp(tP_bar - tP_bar_max)))
+                    MI_P = tP_mean - log_sum_exp_tP_bar
+                if config['loss_type'] == 'fCGAN' or config['loss_type'] == 'MINE':
+                    # MINE-Q
+                    tQ_bar = torch.cat(tQ_bar_)
+                    tQ_bar_max = tQ_bar.max().detach()
+                    log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+                    MI_Q = tQ_mean - log_sum_exp_tQ_bar
+                    # backward
+                    (-(MI_P + MI_Q) * MINE_weight).backward()
+
             # Optionally apply ortho reg in D
             if config['D_ortho'] > 0.0:
                 # Debug print to indicate we're using ortho reg in D.
@@ -162,6 +194,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
 
         # Zero G's gradients by default before training G, for safety
         G.optim.zero_grad()
+        if config['accumulate_mine_grad']:
+            tQ_mean = 0.
+            tQ_bar_ = []
         for accumulation_index in range(config['num_G_accumulations']):
             z_.sample_()
             y_.sample_()
@@ -180,9 +215,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                 # AC
                 C_loss += F.cross_entropy(c_cls, y_)
                 # MINE-Q
-                tQ_bar_max = tQ_bar.max().detach()
-                log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
-                MI_Q_loss = torch.mean(tQ) - log_sum_exp_tQ_bar
+                if config['accumulate_mine_grad']:
+                    tQ_mean += torch.mean(tQ) / float(config['num_G_accumulations'])
+                    tQ_bar_.append(tQ_bar)
+                else:
+                    tQ_bar_max = tQ_bar.max().detach()
+                    log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+                    MI_Q_loss = torch.mean(tQ) - log_sum_exp_tQ_bar
             if config['loss_type'] == 'AC' or config['loss_type'] == 'Twin_AC':
                 C_loss += F.cross_entropy(c_cls, y_)
                 if config['loss_type'] == 'Twin_AC':
@@ -195,6 +234,15 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
             f_div = f_div / float(config['num_G_accumulations'])
             (G_loss + (C_loss - MI_loss)*config['AC_weight'] +
              MI_Q_loss*config['MINE_weight'] + f_div*config['fCGAN_weight']).backward()
+
+        # compute accumulated MINE loss once
+        if config['accumulate_mine_grad'] and config['loss_type'] == 'MINE':
+            tQ_bar = torch.cat(tQ_bar_)
+            tQ_bar_max = tQ_bar.max().detach()
+            log_sum_exp_tQ_bar = tQ_bar_max + torch.log(torch.mean(torch.exp(tQ_bar - tQ_bar_max)))
+            MI_Q_loss = tQ_mean - log_sum_exp_tQ_bar
+            # backward
+            (MI_Q_loss * config['MINE_weight']).backward()
 
         # Optionally apply modified ortho reg in G
         if config['G_ortho'] > 0.0:
