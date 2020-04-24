@@ -126,7 +126,7 @@ def run(config):
                                logstyle=config['logstyle'])
     # set tensorboard logger
     tb_logdir = '%s/%s/tblogs' % (config['logs_root'], experiment_name)
-    if os.path.exists(tb_logdir):
+    if os.path.exists(tb_logdir) and not config['resume']:
         for filename in os.listdir(tb_logdir):
             if filename.startswith('events'):
                 os.remove(os.path.join(tb_logdir, filename))  # remove previous event logs
