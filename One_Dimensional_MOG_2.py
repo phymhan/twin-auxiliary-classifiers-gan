@@ -209,10 +209,10 @@ def get_start_id(args):
         for i in os.listdir(os.path.join('MOG', '1D')):
             if i.startswith(f'{args.distance}_{args.gan_loss}{suffix}_'):
                 cnt += 1
-        return cnt - 1
+        return max(0, cnt - 1)
 
 
-def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
+def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', no_graph=False):
     if not suffix and dis_mlp:
         suffix = '_mlp'
     # time.sleep(distance*3)
@@ -244,16 +244,16 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     df2['score_{0}'.format(2)] = r_data
     np.save(save_path+'/o_data', r_data)
 
-    fig, ax = plt.subplots(1, 1)
-    for s in df1.columns:
-        df1[s].plot(kind='kde')
-
-    for s in df2.columns:
-        df2[s].plot(style='--', kind='kde')
-    plt.xlim((-4, 9 + distance * 2))
-    ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
-    plt.title('Original')
-    fig.savefig(save_path + '/original.eps')
+    if not no_graph:
+        fig, ax = plt.subplots(1, 1)
+        for s in df1.columns:
+            df1[s].plot(kind='kde')
+        for s in df2.columns:
+            df2[s].plot(style='--', kind='kde')
+        plt.xlim((-4, 9 + distance * 2))
+        ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
+        plt.title('Original')
+        fig.savefig(save_path + '/original.eps')
 
     train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=True, gan_loss=gan_loss)
     print('TAC training done.')
@@ -280,17 +280,16 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     np.save(save_path + '/twin_ac_data', g_data)
     df2['score_{0}'.format(2)] = g_data
 
-    fig, ax = plt.subplots(1, 1)
-    for s in df1.columns:
-        df1[s].plot(kind='kde')
-
-    for s in df2.columns:
-        df2[s].plot(style='--', kind='kde')
-
-    plt.xlim((-4, 9 + distance * 2))
-    ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
-    plt.title('TAC')
-    fig.savefig(save_path + '/twin_ac.eps')
+    if not no_graph:
+        fig, ax = plt.subplots(1, 1)
+        for s in df1.columns:
+            df1[s].plot(kind='kde')
+        for s in df2.columns:
+            df2[s].plot(style='--', kind='kde')
+        plt.xlim((-4, 9 + distance * 2))
+        ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
+        plt.title('TAC')
+        fig.savefig(save_path + '/twin_ac.eps')
 
     mean0_0, var0_0 = polynomial_mmd(np.expand_dims(data1_g.numpy(), axis=1), np.expand_dims(data1.cpu().numpy(),axis=1))
     mean0_1, var0_1 = polynomial_mmd(np.expand_dims(data2_g.numpy(), axis=1),
@@ -332,17 +331,16 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     np.save(save_path + '/ac_data', g_data)
     df2['score_{0}'.format(2)] = g_data
 
-    fig, ax = plt.subplots(1, 1)
-    for s in df1.columns:
-        df1[s].plot(kind='kde')
-
-    for s in df2.columns:
-        df2[s].plot(style='--', kind='kde')
-    plt.xlim((-4, 9 + distance * 2))
-    ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
-    plt.title('AC')
-
-    fig.savefig(save_path + '/ac.eps')
+    if not no_graph:
+        fig, ax = plt.subplots(1, 1)
+        for s in df1.columns:
+            df1[s].plot(kind='kde')
+        for s in df2.columns:
+            df2[s].plot(style='--', kind='kde')
+        plt.xlim((-4, 9 + distance * 2))
+        ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
+        plt.title('AC')
+        fig.savefig(save_path + '/ac.eps')
 
     mean1_0, var1_0 = polynomial_mmd(np.expand_dims(data1_g.numpy(), axis=1),
                                      np.expand_dims(data1.cpu().numpy(), axis=1))
@@ -385,17 +383,16 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     np.save(save_path + '/projection_data', g_data)
     df2['score_{0}'.format(2)] = g_data
 
-    fig, ax = plt.subplots(1, 1)
-    for s in df1.columns:
-        df1[s].plot(kind='kde')
-
-    for s in df2.columns:
-        df2[s].plot(style='--', kind='kde')
-    plt.xlim((-4, 9 + distance * 2))
-    ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
-    plt.title('Projection')
-
-    fig.savefig(save_path + '/projection.eps')
+    if not no_graph:
+        fig, ax = plt.subplots(1, 1)
+        for s in df1.columns:
+            df1[s].plot(kind='kde')
+        for s in df2.columns:
+            df2[s].plot(style='--', kind='kde')
+        plt.xlim((-4, 9 + distance * 2))
+        ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
+        plt.title('Projection')
+        fig.savefig(save_path + '/projection.eps')
 
     mean2_0, var2_0 = polynomial_mmd(np.expand_dims(data1_g.numpy(), axis=1),
                                      np.expand_dims(data1.cpu().numpy(), axis=1))
@@ -431,7 +428,8 @@ if __name__ == '__main__':
     parser.add_argument('--gan_loss', type=str, help='gan loss type', default='bce')
     parser.add_argument('--dis_mlp', action='store_true')
     parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--no_graph', action='store_true')
     parser.add_argument('--suffix', type=str, help='suffix', default='')
     args = parser.parse_args()
     for i in range(get_start_id(args), args.num_runs):
-        multi_results(args.distance, args.gan_loss, args.dis_mlp, i, args.suffix)
+        multi_results(args.distance, args.gan_loss, args.dis_mlp, i, args.suffix, args.no_graph)
