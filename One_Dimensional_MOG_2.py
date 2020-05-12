@@ -200,6 +200,18 @@ def train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=True, gan_loss=
                 optg.step()
 
 
+def get_start_id(args):
+    if args.resume:
+        return 0
+    else:
+        cnt = 0
+        suffix = '_mlp' if not args.suffix and args.dis_mlp else args.suffix
+        for i in os.listdir(os.path.join('MOG', '1D')):
+            if i.startswith(f'{args.distance}_{args.gan_loss}{suffix}_'):
+                cnt += 1
+        return cnt - 1
+
+
 def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     if not suffix and dis_mlp:
         suffix = '_mlp'
@@ -418,6 +430,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_runs', type=int, help='number of runs', default=1)
     parser.add_argument('--gan_loss', type=str, help='gan loss type', default='bce')
     parser.add_argument('--dis_mlp', action='store_true')
+    parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--suffix', type=str, help='suffix', default='')
     args = parser.parse_args()
-    for i in range(args.num_runs):
-        multi_results(args.distance, args.gan_loss, args.dis_mlp, i)
+    for i in range(get_start_id(args), args.num_runs):
+        multi_results(args.distance, args.gan_loss, args.dis_mlp, i, args.suffix)
