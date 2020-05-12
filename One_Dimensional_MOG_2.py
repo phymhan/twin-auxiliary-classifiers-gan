@@ -202,7 +202,7 @@ def train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=True, gan_loss=
 
 def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     if not suffix and dis_mlp:
-        suffix = 'mlp'
+        suffix = '_mlp'
     # time.sleep(distance*3)
     nz = 2
     G = G_guassian(nz=nz, num_classes=3).cuda()
@@ -212,11 +212,11 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
     optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
 
     distance = (distance + 2) / 2
-    if os.path.exists(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}{suffix}')):
+    if os.path.exists(os.path.join('MOG', '1D', f'{distance}_{gan_loss}{suffix}_{run_id}')):
         pass
     else:
-        os.makedirs(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}{suffix}'))
-    save_path = os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}{suffix}')
+        os.makedirs(os.path.join('MOG', '1D', f'{distance}_{gan_loss}{suffix}_{run_id}'))
+    save_path = os.path.join('MOG', '1D', f'{distance}_{gan_loss}{suffix}_{run_id}')
 
     data1 = torch.randn(128000).cuda()
     data2 = torch.randn(128000).cuda() * 2 + distance
