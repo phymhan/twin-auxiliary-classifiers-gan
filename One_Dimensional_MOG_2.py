@@ -94,7 +94,7 @@ class G_guassian(nn.Module):
 
 class D_guassian(nn.Module):
 
-    def __init__(self, num_classes=3, AC=True):
+    def __init__(self, num_classes=3, AC=True, dis_mlp=False):
         super(D_guassian, self).__init__()
         self.AC = AC
 
@@ -106,7 +106,14 @@ class D_guassian(nn.Module):
             nn.Linear(10, 10),
             # nn.Tanh(),
         )
-        self.gan_linear = nn.Linear(10, 1)
+        if dis_mlp:
+            self.gan_linear = nn.Sequential(
+                nn.Linear(10, 10),
+                nn.Tanh(),
+                nn.Linear(10, 1)
+            )
+        else:
+            self.gan_linear = nn.Linear(10, 1)
         self.aux_linear = nn.Linear(10, num_classes)
         self.mi_linear = nn.Linear(10, num_classes)
 
@@ -193,23 +200,23 @@ def train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=True, gan_loss=
                 optg.step()
 
 
-def multi_results(distance, gan_loss='bce', run_id=0):
+def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix=''):
+    if not suffix and dis_mlp:
+        suffix = 'mlp'
     # time.sleep(distance*3)
     nz = 2
     G = G_guassian(nz=nz, num_classes=3).cuda()
-    D = D_guassian(num_classes=3, AC=True).cuda()
+    D = D_guassian(num_classes=3, AC=True, dis_mlp=dis_mlp).cuda()
 
-    optg = optim.Adam(G.parameters(), lr=0.002,
-                      betas=(0.5, 0.999))
-    optd = optim.Adam(D.parameters(), lr=0.002,
-                      betas=(0.5, 0.999))
+    optg = optim.Adam(G.parameters(), lr=0.002, betas=(0.5, 0.999))
+    optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
 
     distance = (distance + 2) / 2
-    if os.path.exists(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}')):
+    if os.path.exists(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}{suffix}')):
         pass
     else:
-        os.makedirs(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}'))
-    save_path = os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}')
+        os.makedirs(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}{suffix}'))
+    save_path = os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}{suffix}')
 
     data1 = torch.randn(128000).cuda()
     data2 = torch.randn(128000).cuda() * 2 + distance
@@ -283,13 +290,10 @@ def multi_results(distance, gan_loss='bce', run_id=0):
 
     # ac
     G = G_guassian(nz=nz, num_classes=3).cuda()
-    D = D_guassian(num_classes=3, AC=True).cuda()
+    D = D_guassian(num_classes=3, AC=True, dis_mlp=dis_mlp).cuda()
 
-
-    optg = optim.Adam(G.parameters(), lr=0.002,
-                      betas=(0.5, 0.999))
-    optd = optim.Adam(D.parameters(), lr=0.002,
-                      betas=(0.5, 0.999))
+    optg = optim.Adam(G.parameters(), lr=0.002, betas=(0.5, 0.999))
+    optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
 
     train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=False, gan_loss=gan_loss)
     print('AC training done.')
@@ -339,12 +343,10 @@ def multi_results(distance, gan_loss='bce', run_id=0):
 
     ####projection
     G = G_guassian(nz=nz, num_classes=3).cuda()
-    D = D_guassian(num_classes=3, AC=False).cuda()
+    D = D_guassian(num_classes=3, AC=False, dis_mlp=dis_mlp).cuda()
 
-    optg = optim.Adam(G.parameters(), lr=0.002,
-                      betas=(0.5, 0.999))
-    optd = optim.Adam(D.parameters(), lr=0.002,
-                      betas=(0.5, 0.999))
+    optg = optim.Adam(G.parameters(), lr=0.002, betas=(0.5, 0.999))
+    optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
 
     train(data1, data2, data3, nz, G, D, optd, optg, AC=False, MI=False, gan_loss=gan_loss)
     print('Projection training done.')
@@ -415,6 +417,7 @@ if __name__ == '__main__':
     parser.add_argument('--distance', type=float, help='distance for 1D MoG exp', default=4)
     parser.add_argument('--num_runs', type=int, help='number of runs', default=1)
     parser.add_argument('--gan_loss', type=str, help='gan loss type', default='bce')
+    parser.add_argument('--dis_mlp', action='store_true')
     args = parser.parse_args()
     for i in range(args.num_runs):
-        multi_results(args.distance, args.gan_loss, i)
+        multi_results(args.distance, args.gan_loss, args.dis_mlp, i)
