@@ -412,8 +412,9 @@ def multi_results(distance, gan_loss='bce', run_id=0):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--runs', type=int, help='number of runs', default=1)
+    parser.add_argument('--distance', type=float, help='distance for 1D MoG exp', default=4)
+    parser.add_argument('--num_runs', type=int, help='number of runs', default=1)
+    parser.add_argument('--gan_loss', type=str, help='gan loss type', default='bce')
     args = parser.parse_args()
-    for i in range(args.runs):
-        multi_results(4, 'hinge', i)
-        multi_results(4, 'bce', i)
+    for i in range(args.num_runs):
+        multi_results(args.distance, args.gan_loss, i)
