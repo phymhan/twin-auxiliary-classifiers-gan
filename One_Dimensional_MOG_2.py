@@ -204,11 +204,11 @@ def multi_results(distance, gan_loss='bce'):
                       betas=(0.5, 0.999))
 
     distance = (distance + 2) / 2
-    if os.path.exists(os.path.join('MOG', '1D', str(distance) + '_1D')):
+    if os.path.exists(os.path.join('MOG', '1D', str(distance) + '_' + gan_loss)):
         pass
     else:
-        os.makedirs(os.path.join('MOG', '1D', str(distance) + '_1D'))
-    save_path = os.path.join('MOG', '1D', str(distance) + '_1D')
+        os.makedirs(os.path.join('MOG', '1D', str(distance) + '_' + gan_loss))
+    save_path = os.path.join('MOG', '1D', str(distance) + '_' + gan_loss)
 
     data1 = torch.randn(128000).cuda()
     data2 = torch.randn(128000).cuda() * 2 + distance
@@ -410,5 +410,5 @@ def multi_results(distance, gan_loss='bce'):
         file.write(content + '\n')
 
 if __name__ == '__main__':
-    multi_results(4)
+    multi_results(4, 'bce')
     multi_results(4, 'hinge')
