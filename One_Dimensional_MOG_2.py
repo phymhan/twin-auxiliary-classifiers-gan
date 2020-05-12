@@ -203,7 +203,7 @@ def multi_results(distance, gan_loss='bce'):
     optd = optim.Adam(D.parameters(), lr=0.002,
                       betas=(0.5, 0.999))
 
-    distance = (distance+2)/2
+    distance = (distance + 2) / 2
     if os.path.exists(os.path.join('MOG', '1D', str(distance) + '_1D')):
         pass
     else:
@@ -235,7 +235,8 @@ def multi_results(distance, gan_loss='bce'):
     plt.title('Original')
     fig.savefig(save_path + '/original.eps')
 
-    train(data1, data2, data3, G, D, optd, optg, AC=True, MI=True, gan_loss=gan_loss)
+    train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=True, gan_loss=gan_loss)
+    print('TAC training done.')
 
     z = torch.randn(10000, nz).cuda()
     label = torch.zeros(10000).long().cuda()  # torch.LongTensor(10000).random_(2).cuda()#
@@ -289,7 +290,8 @@ def multi_results(distance, gan_loss='bce'):
     optd = optim.Adam(D.parameters(), lr=0.002,
                       betas=(0.5, 0.999))
 
-    train(data1, data2, data3, G, D, optd, optg, AC=True, MI=False, gan_loss=gan_loss)
+    train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=False, gan_loss=gan_loss)
+    print('AC training done.')
 
     z = torch.randn(10000, nz).cuda()
     label = torch.zeros(10000).long().cuda()  # torch.LongTensor(10000).random_(2).cuda()#
@@ -343,7 +345,8 @@ def multi_results(distance, gan_loss='bce'):
     optd = optim.Adam(D.parameters(), lr=0.002,
                       betas=(0.5, 0.999))
 
-    train(data1, data2, data3, G, D, optd, optg, AC=False, MI=False, gan_loss=gan_loss)
+    train(data1, data2, data3, nz, G, D, optd, optg, AC=False, MI=False, gan_loss=gan_loss)
+    print('Projection training done.')
 
     z = torch.randn(10000, nz).cuda()
     label = torch.zeros(10000).long().cuda()  # torch.LongTensor(10000).random_(2).cuda()#
@@ -407,4 +410,5 @@ def multi_results(distance, gan_loss='bce'):
         file.write(content + '\n')
 
 if __name__ == '__main__':
-    multi_results(3)
+    multi_results(4)
+    multi_results(4, 'hinge')
