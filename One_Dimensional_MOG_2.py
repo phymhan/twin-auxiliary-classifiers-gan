@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import pandas as pd
 from mmd_metric import polynomial_mmd
+import argparse
 
 # Hinge Loss
 def loss_hinge_dis_real(dis_real):
@@ -192,7 +193,7 @@ def train(data1, data2, data3, nz, G, D, optd, optg, AC=True, MI=True, gan_loss=
                 optg.step()
 
 
-def multi_results(distance, gan_loss='bce'):
+def multi_results(distance, gan_loss='bce', run_id=0):
     # time.sleep(distance*3)
     nz = 2
     G = G_guassian(nz=nz, num_classes=3).cuda()
@@ -204,11 +205,11 @@ def multi_results(distance, gan_loss='bce'):
                       betas=(0.5, 0.999))
 
     distance = (distance + 2) / 2
-    if os.path.exists(os.path.join('MOG', '1D', str(distance) + '_' + gan_loss)):
+    if os.path.exists(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}')):
         pass
     else:
-        os.makedirs(os.path.join('MOG', '1D', str(distance) + '_' + gan_loss))
-    save_path = os.path.join('MOG', '1D', str(distance) + '_' + gan_loss)
+        os.makedirs(os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}'))
+    save_path = os.path.join('MOG', '1D', f'{distance}_{gan_loss}_{run_id}')
 
     data1 = torch.randn(128000).cuda()
     data2 = torch.randn(128000).cuda() * 2 + distance
@@ -410,5 +411,9 @@ def multi_results(distance, gan_loss='bce'):
         file.write(content + '\n')
 
 if __name__ == '__main__':
-    multi_results(4, 'bce')
-    multi_results(4, 'hinge')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--runs', type=int, help='number of runs', default=1)
+    args = parser.parse_args()
+    for i in range(args.runs):
+        multi_results(4, 'hinge', i)
+        multi_results(4, 'bce', i)
