@@ -153,9 +153,9 @@ def train(data1,data2,data3,nz,G,D,optd,optg,AC=True,MI=True):
                 G_loss = F.binary_cross_entropy(d_fake, torch.ones(256).cuda())
 
                 if AC:
-                    G_loss += F.cross_entropy(c,fake_label)
+                    G_loss += F.cross_entropy(c, fake_label)
                 if MI:
-                    G_loss += F.cross_entropy(mi, fake_label)
+                    G_loss -= F.cross_entropy(mi, fake_label)
 
                 optg.zero_grad()
                 G_loss.backward()
