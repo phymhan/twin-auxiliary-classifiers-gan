@@ -232,7 +232,7 @@ def get_start_id(args):
         return max(0, cnt - 1)
 
 
-def evel_model(G, save_path, name, data1, data2, data3, r_data):
+def evel_model(G, save_path, name, data1, data2, data3, r_data, distance):
     no_graph = False
     nz = 2
     z = torch.randn(10000, nz).cuda()
@@ -323,7 +323,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
     optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
     train(data1, data2, data3, nz, G, D, optd, optg, loss_type='fc', gan_loss=gan_loss)
     print('fc training done.')
-    res0_fc, res1_fc, res2_fc, resm_fc = evel_model(G, save_path, 'fc', data1, data2, data3, r_data)
+    res0_fc, res1_fc, res2_fc, resm_fc = evel_model(G, save_path, 'fc', data1, data2, data3, r_data, distance)
 
     ## train tac
     G = G_guassian(nz=nz, num_classes=3).cuda()
@@ -332,7 +332,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
     optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
     train(data1, data2, data3, nz, G, D, optd, optg, loss_type='tac', gan_loss=gan_loss)
     print('tac training done.')
-    res0_tac, res1_tac, res2_tac, resm_tac = evel_model(G, save_path, 'tac', data1, data2, data3, r_data)
+    res0_tac, res1_tac, res2_tac, resm_tac = evel_model(G, save_path, 'tac', data1, data2, data3, r_data, distance)
 
     ## train ac
     G = G_guassian(nz=nz, num_classes=3).cuda()
@@ -341,7 +341,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
     optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
     train(data1, data2, data3, nz, G, D, optd, optg, loss_type='ac', gan_loss=gan_loss)
     print('ac training done.')
-    res0_ac, res1_ac, res2_ac, resm_ac = evel_model(G, save_path, 'ac', data1, data2, data3, r_data)
+    res0_ac, res1_ac, res2_ac, resm_ac = evel_model(G, save_path, 'ac', data1, data2, data3, r_data, distance)
 
     ## train hybrid
     G = G_guassian(nz=nz, num_classes=3).cuda()
@@ -350,7 +350,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
     optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
     train(data1, data2, data3, nz, G, D, optd, optg, loss_type='hybrid', gan_loss=gan_loss)
     print('hybrid training done.')
-    res0_hy, res1_hy, res2_hy, resm_hy = evel_model(G, save_path, 'hybrid', data1, data2, data3, r_data)
+    res0_hy, res1_hy, res2_hy, resm_hy = evel_model(G, save_path, 'hybrid', data1, data2, data3, r_data, distance)
 
     ## train proj
     G = G_guassian(nz=nz, num_classes=3).cuda()
@@ -359,7 +359,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
     optd = optim.Adam(D.parameters(), lr=0.002, betas=(0.5, 0.999))
     train(data1, data2, data3, nz, G, D, optd, optg, loss_type='projection', gan_loss=gan_loss)
     print('fc training done.')
-    res0_proj, res1_proj, res2_proj, resm_proj = evel_model(G, save_path, 'projection', data1, data2, data3, r_data)
+    res0_proj, res1_proj, res2_proj, resm_proj = evel_model(G, save_path, 'projection', data1, data2, data3, r_data, distance)
 
 
 if __name__ == '__main__':
