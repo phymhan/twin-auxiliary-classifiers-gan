@@ -233,6 +233,7 @@ def get_start_id(args):
 
 
 def evel_model(G, save_path, name, data1, data2, data3, r_data):
+    no_graph = False
     nz = 2
     z = torch.randn(10000, nz).cuda()
     label = torch.zeros(10000).long().cuda()  # torch.LongTensor(10000).random_(2).cuda()#
