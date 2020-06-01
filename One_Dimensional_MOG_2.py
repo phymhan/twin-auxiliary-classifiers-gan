@@ -421,6 +421,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
     for content in result:
         file.write(content + '\n')
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--distance', type=float, help='distance for 1D MoG exp', default=4)
