@@ -311,7 +311,7 @@ def multi_results(distance, gan_loss='bce', dis_mlp=False, run_id=0, suffix='', 
             df2[s].plot(style='--', kind='kde')
         plt.xlim((-4, 9 + distance * 2))
         ax.legend(["Class_0", "Class_1", "Class_2", "Marginal"])
-        plt.title('Original')
+        # plt.title('Original')
         fig.savefig(save_path + '/original.eps')
 
     ### fc, tac, ac, hy, proj
